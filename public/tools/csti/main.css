@@ -1,0 +1,329 @@
+:root {
+    --color-primary: #29252bde;
+    --color-bg: #f5f5f7;
+    --color-card: #ffffff;
+    --color-text: #333333;
+    --color-text-secondary: rgb(44, 48, 53);
+    --color-text-muted: #888888;
+    --color-border: #ececec;
+    --color-option-bg: #ececec3b;
+    --color-disabled: #cccccc;
+    --color-progress-bg: #dddddd;
+    --color-dim-bar: #eeeeee;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+    --shadow-card: rgba(0, 0, 0, 0.02) 0px 1px 3px 0px, rgba(27, 31, 35, 0.15) 0px 0px 0px 1px;
+    --shadow-quiz: rgba(0, 0, 0, 0.05) 0px 6px 24px 0px, rgba(0, 0, 0, 0.08) 0px 0px 0px 1px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+    padding: 10px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+header {
+    text-align: center;
+    padding: 30px 0;
+}
+
+.nav-actions,
+.result-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 18px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+
+.nav-btn-secondary {
+    color: var(--color-primary);
+    background: transparent;
+    border: 2px solid var(--color-primary);
+}
+
+.nav-btn-secondary:hover {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+h1 {
+    font-size: 2rem;
+    color: var(--color-primary);
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+}
+
+.progress-bar {
+    background: var(--color-progress-bg);
+    height: 10px;
+    border-radius: 12px;
+    margin: 20px 0;
+    overflow: hidden;
+}
+
+.progress-fill {
+    background: var(--color-primary);
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+.progress-text {
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+}
+
+.question {
+    background: var(--color-card);
+    border-radius: 12px;
+    margin-bottom: 15px;
+    padding: 18px;
+    box-shadow: var(--shadow-card);
+}
+
+.question-title {
+    font-size: 1rem;
+    margin-bottom: 15px;
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+.question-title:first-child {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-bottom: 8px;
+    font-weight: 400;
+}
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.option {
+    background: var(--color-option-bg);
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.95rem;
+    color: var(--color-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.option:hover {
+    border-color: var(--color-primary);
+}
+
+.option.selected {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+
+.option.selected .option-label {
+    color: #fff;
+}
+
+.option-label {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1rem;
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 15px;
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: opacity 0.2s;
+}
+
+.submit-btn:hover {
+    opacity: 0.9;
+}
+
+.submit-btn:disabled {
+    background: var(--color-disabled);
+    cursor: not-allowed;
+}
+
+.result {
+    display: none;
+    text-align: center;
+    padding: 30px 0;
+}
+
+.result.show {
+    display: block;
+}
+
+.result-type {
+    font-size: 2.5rem;
+    color: var(--color-primary);
+    margin-bottom: 10px;
+}
+
+.result-match {
+    color: var(--color-text-secondary);
+    margin-bottom: 30px;
+}
+
+.result-image {
+    width: 200px;
+    height: 200px;
+    border-radius: 20px;
+    margin: 0 auto 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+}
+
+.result-desc {
+    background: var(--color-card);
+    border-radius: 12px;
+    padding: 25px;
+    text-align: left;
+    margin-bottom: 25px;
+    box-shadow: var(--shadow-sm);
+}
+
+.result-desc h3 {
+    color: var(--color-primary);
+    margin-bottom: 15px;
+}
+
+.result-desc p {
+    color: var(--color-text-secondary);
+    line-height: 1.8;
+}
+
+.dimensions {
+    background: var(--color-card);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: var(--shadow-sm);
+}
+
+.dimensions h3 {
+    color: var(--color-primary);
+    margin-bottom: 20px;
+}
+
+.dim-item {
+    margin-bottom: 15px;
+}
+
+.dim-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+    color: var(--color-text);
+}
+
+.dim-bar {
+    height: 8px;
+    background: var(--color-dim-bar);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.dim-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s;
+}
+
+.restart-btn {
+    padding: 15px 40px;
+    background: transparent;
+    color: var(--color-primary);
+    border: 2px solid var(--color-primary);
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.restart-btn:hover {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.quiz {
+    transition: opacity 0.3s;
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--color-card);
+    box-shadow: var(--shadow-quiz);
+}
+
+.quiz.hide {
+    display: none;
+}
+
+.footer {
+    text-align: center;
+    padding: 30px 0;
+    margin-top: 20px;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+    h1 { font-size: 1.5rem; }
+    .question { padding: 15px; }
+    .result-type { font-size: 2rem; }
+    .nav-btn,
+    .restart-btn { width: 100%; }
+}

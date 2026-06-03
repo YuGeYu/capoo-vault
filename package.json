@@ -1,0 +1,37 @@
+{
+  "name": "maomaochongtz-admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "npm run db:migrate:local:init && npm run db:migrate:local:remove-bg && npm run db:migrate:local:billing && npm run db:migrate:local:redeem-codes && npm run db:migrate:local:ai-api && npm run db:migrate:local:profile && npm run db:migrate:local:social && npm run db:migrate:local:self-follow && npm run db:migrate:local:software-releases",
+    "db:migrate:remote": "npm run db:migrate:remote:init && npm run db:migrate:remote:remove-bg && npm run db:migrate:remote:billing && npm run db:migrate:remote:redeem-codes && npm run db:migrate:remote:ai-api && npm run db:migrate:remote:profile && npm run db:migrate:remote:social && npm run db:migrate:remote:self-follow && npm run db:migrate:remote:software-releases",
+    "db:migrate:local:init": "wrangler d1 execute MMC_DB --local --file=./schema/001_init.sql",
+    "db:migrate:remote:init": "wrangler d1 execute MMC_DB --remote --file=./schema/001_init.sql",
+    "db:migrate:local:remove-bg": "wrangler d1 execute MMC_DB --local --file=./schema/002_remove_bg_membership.sql",
+    "db:migrate:remote:remove-bg": "wrangler d1 execute MMC_DB --remote --file=./schema/002_remove_bg_membership.sql",
+    "db:migrate:local:billing": "wrangler d1 execute MMC_DB --local --file=./schema/003_remove_bg_billing.sql",
+    "db:migrate:remote:billing": "wrangler d1 execute MMC_DB --remote --file=./schema/003_remove_bg_billing.sql",
+    "db:migrate:local:redeem-codes": "wrangler d1 execute MMC_DB --local --file=./schema/004_remove_bg_redeem_codes.sql",
+    "db:migrate:remote:redeem-codes": "wrangler d1 execute MMC_DB --remote --file=./schema/004_remove_bg_redeem_codes.sql",
+    "db:migrate:local:ai-api": "wrangler d1 execute MMC_DB --local --file=./schema/005_ai_api.sql",
+    "db:migrate:remote:ai-api": "wrangler d1 execute MMC_DB --remote --file=./schema/005_ai_api.sql",
+    "db:migrate:local:ai-api-multi-keys": "wrangler d1 execute MMC_DB --local --file=./schema/006_ai_api_multi_keys.sql",
+    "db:migrate:remote:ai-api-multi-keys": "wrangler d1 execute MMC_DB --remote --file=./schema/006_ai_api_multi_keys.sql",
+    "db:migrate:local:redeem-products": "wrangler d1 execute MMC_DB --local --file=./schema/007_redeem_code_products.sql",
+    "db:migrate:remote:redeem-products": "wrangler d1 execute MMC_DB --remote --file=./schema/007_redeem_code_products.sql",
+    "db:migrate:local:profile": "wrangler d1 execute MMC_DB --local --file=./schema/008_profile_and_favorites.sql",
+    "db:migrate:remote:profile": "wrangler d1 execute MMC_DB --remote --file=./schema/008_profile_and_favorites.sql",
+    "db:migrate:local:social": "wrangler d1 execute MMC_DB --local --file=./schema/009_social_features.sql",
+    "db:migrate:remote:social": "wrangler d1 execute MMC_DB --remote --file=./schema/009_social_features.sql",
+    "db:migrate:local:self-follow": "wrangler d1 execute MMC_DB --local --file=./schema/010_allow_self_follow.sql",
+    "db:migrate:remote:self-follow": "wrangler d1 execute MMC_DB --remote --file=./schema/010_allow_self_follow.sql",
+    "db:migrate:local:software-releases": "wrangler d1 execute MMC_DB --local --file=./schema/011_software_releases.sql",
+    "db:migrate:remote:software-releases": "wrangler d1 execute MMC_DB --remote --file=./schema/011_software_releases.sql",
+    "software-release:upsert": "node ./scripts/upsert-software-release.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.97.0"
+  }
+}

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YSTI 原神人格测试</title>
+    <link rel="stylesheet" href="./main.css">
+</head>
+<body>
+    <div class="shell">
+        <section id="intro" class="screen active">
+            <div class="hero card hero-minimal">
+                <div class="nav-actions">
+                    <a class="nav-btn nav-btn-secondary" href="/tools/list">返回工具页</a>
+                    <a class="nav-btn nav-btn-secondary" href="/">返回首页</a>
+                </div>
+                <h1>YSTI 原神人格测试</h1>
+                <p class="hero-subtitle">原神人格类型指标 · Yuanshen Type Indicator</p>
+                <p class="hero-subtitle hero-subtitle-compact">30 道题，测出你在提瓦特大陆的风格画像</p>
+                <div class="hero-actions hero-actions-single">
+                    <button id="startBtn" class="btn-primary" type="button">开始测试</button>
+                </div>
+                <div class="hero-info">
+                    <span>题库维度：冒险、战斗、社交、协作、情感、价值、规则、决断、执行、自我认同</span>
+                    <span>测试结果仅供娱乐与交流</span>
+                </div>
+            </div>
+        </section>
+
+        <section id="test" class="screen">
+            <div class="test-wrap card">
+                <div class="topbar">
+                    <div class="progress"><span id="progressBar"></span></div>
+                    <div class="progress-text" id="progressText">0 / 30</div>
+                </div>
+                <div id="questionList" class="question-list"></div>
+                <div class="actions-bottom">
+                    <div class="hint" id="testHint">全部作答才能解锁结果，请认真回答每一题。</div>
+                    <div class="actions-row">
+                        <button id="backIntroBtn" class="btn-secondary" type="button">返回开场</button>
+                        <a class="nav-btn nav-btn-secondary" href="/tools/list">返回工具页</a>
+                        <a class="nav-btn nav-btn-secondary" href="/">返回首页</a>
+                        <button id="submitBtn" class="btn-primary" type="button" disabled>提交并查看结果</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="result" class="screen">
+            <div class="result-wrap card">
+                <div class="result-layout">
+                    <div class="result-top">
+                        <div class="poster-box" id="posterBox">
+                            <img id="posterImg" class="poster-img" src="" alt="角色图片">
+                            <div class="poster-overlay">
+                                <div class="poster-element" id="posterElement">
+                                    <span class="poster-element-icon" id="posterElementIcon">⭐</span>
+                                    <span id="posterElementName">元素</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="type-box">
+                            <div class="type-kicker" id="resultModeKicker">你的原神人格</div>
+                            <div class="type-name" id="resultTypeName">YSTI</div>
+                            <div class="match" id="matchBadge">匹配度 0%</div>
+                            <div class="type-subname" id="resultTypeSub"></div>
+                        </div>
+                    </div>
+                    <div class="analysis-box">
+                        <h3>人格解读</h3>
+                        <p id="resultDesc"></p>
+                    </div>
+                    <div class="dim-box">
+                        <h3>十维度评分</h3>
+                        <div id="dimList" class="dim-list"></div>
+                    </div>
+                    <div class="note-box">
+                        <h3>说明</h3>
+                        <p>本页已将公开测试源码拆分为站内工具结构，保留题库、结果映射和角色图资源，便于后续独立维护。</p>
+                    </div>
+                </div>
+                <div class="result-actions">
+                    <div class="actions-row">
+                        <button id="restartBtn" class="btn-secondary" type="button">重新测试</button>
+                        <button id="toTopBtn" class="btn-secondary" type="button">回到开场</button>
+                        <a class="nav-btn nav-btn-secondary" href="/tools/list">返回工具页</a>
+                        <a class="nav-btn nav-btn-secondary" href="/">返回首页</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="./data.js"></script>
+    <script src="./script.js"></script>
+</body>
+</html>

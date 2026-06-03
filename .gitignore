@@ -1,0 +1,14 @@
+node_modules/
+.wrangler/
+
+*.log
+*.err
+*.out
+
+import-token.txt
+.env
+.env.*
+
+backups/
+*.zip
+*.tgz
