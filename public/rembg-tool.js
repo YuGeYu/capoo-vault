@@ -209,7 +209,7 @@ export function mountRembgTool({ root, toast, api, viewer }) {
     if (!state.access.isLoggedIn) {
       throw new Error('请先登录，再购买抠图会员月卡。');
     }
-    const shopUrl = state.access.billing?.shopUrl || 'https://pay.ldxp.cn/shop/lbtvjbtv';
+    const shopUrl = state.access.billing?.shopUrl || 'https://your-shop.example/product/remove-bg-member';
     window.open(shopUrl, '_blank', 'noopener,noreferrer');
     toast('店铺已在新标签页打开，购买后回到这里填写兑换码。', 'info');
   }
@@ -367,7 +367,7 @@ function accessCard(access, loadingAccess, canBuy, creatingOrder, redeemingCode 
   const billing = access.billing || {
     price: '6.00',
     durationDays: 30,
-    shopUrl: 'https://pay.ldxp.cn/shop/lbtvjbtv'
+    shopUrl: 'https://your-shop.example/product/remove-bg-member'
   };
 
   if (!access.isLoggedIn) {
@@ -475,7 +475,7 @@ function normalizeAccess(access, viewer) {
     billing: {
       price: '6.00',
       durationDays: 30,
-      shopUrl: 'https://pay.ldxp.cn/shop/lbtvjbtv'
+      shopUrl: 'https://your-shop.example/product/remove-bg-member'
     }
   };
 }

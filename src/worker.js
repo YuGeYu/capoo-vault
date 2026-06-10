@@ -12,6 +12,10 @@ const AI_API_BALANCE_10_PRODUCT_CODE = 'ai_api_balance_10';
 const REMOVE_BG_TIMEZONE = 'Asia/Shanghai';
 const ALIPAY_GATEWAY_URL = 'https://openapi.alipay.com/gateway.do';
 const AI_CHAT_API_URL = 'https://platform.aitools.cfd/api/v1/chat/completions';
+const MEMBER_SHOP_URL_FALLBACK = 'https://your-shop.example/product/remove-bg-member';
+// Maintainer-published demo upstream key. Production deployments should set
+// AI_CHAT_API_KEY as a Cloudflare Secret because this fallback may be limited,
+// rotated, or disabled without notice.
 const AI_CHAT_API_KEY_FALLBACK = 'sk-7407235b71ce46e28a619503532f7abc';
 const AI_CHAT_TEXT_MODELS = new Set([
   'zhipu/glm-4-flash',
@@ -978,7 +982,7 @@ async function getAiApiDashboard(env, user) {
     logs: recentLogs.results || [],
     pricing: getAiApiPricing(),
     redeem: {
-      shopUrl: env.AI_API_MEMBER_SHOP_URL || env.REMOVE_BG_MEMBER_SHOP_URL || 'https://pay.ldxp.cn/shop/lbtvjbtv',
+      shopUrl: env.AI_API_MEMBER_SHOP_URL || env.REMOVE_BG_MEMBER_SHOP_URL || MEMBER_SHOP_URL_FALLBACK,
       products: getAiApiRedeemProducts(env)
     },
     limits: {
@@ -1403,14 +1407,14 @@ function getRemoveBgBillingConfig(env) {
     subject: env.REMOVE_BG_MEMBER_SUBJECT || 'AI抠图会员月卡',
     price,
     durationDays,
-    shopUrl: env.REMOVE_BG_MEMBER_SHOP_URL || 'https://pay.ldxp.cn/shop/lbtvjbtv',
+    shopUrl: env.REMOVE_BG_MEMBER_SHOP_URL || MEMBER_SHOP_URL_FALLBACK,
     returnUrl: env.ALIPAY_RETURN_URL || `${env.SITE_ORIGIN || ''}/tools/remove-bg`,
     notifyUrl: env.ALIPAY_NOTIFY_URL || `${env.SITE_ORIGIN || ''}/api/billing/alipay/notify`
   };
 }
 
 function getAiApiRedeemProducts(env) {
-  const shopUrl = env.AI_API_MEMBER_SHOP_URL || env.REMOVE_BG_MEMBER_SHOP_URL || 'https://pay.ldxp.cn/shop/lbtvjbtv';
+  const shopUrl = env.AI_API_MEMBER_SHOP_URL || env.REMOVE_BG_MEMBER_SHOP_URL || MEMBER_SHOP_URL_FALLBACK;
   return [
     {
       code: AI_API_MEMBER_PRODUCT_CODE,

@@ -117,7 +117,7 @@ export function mountAiApiTool({ root, api, toast }) {
   }
 
   function buyCode() {
-    const shopUrl = state.data?.redeem?.shopUrl || 'https://pay.ldxp.cn/shop/lbtvjbtv';
+    const shopUrl = state.data?.redeem?.shopUrl || 'https://your-shop.example/product/ai-api-member';
     window.open(shopUrl, '_blank', 'noopener,noreferrer');
     toast('店铺已在新标签页打开，购买后回到这里填写兑换码。', 'info');
   }
