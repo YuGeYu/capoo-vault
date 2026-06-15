@@ -20,6 +20,9 @@ export const state = {
   adminEditingFolderId: null,
   announcementDraft: null,
   previewScrollY: 0,
+  previewIndex: -1,
+  commentsExpanded: false,
+  recentCommentId: null,
   homeIntroDismissed: false,
   homeNoticeDismissed: false,
   homeToolsDismissed: false,
@@ -83,7 +86,9 @@ export async function copyText(text) {
 }
 
 export const shareCurrentPage = async function () {
-  const shareUrl = location.href;
+  const url = new URL(location.href);
+  if (state.folderDetail && !state.previewOpen) url.hash = '';
+  const shareUrl = url.toString();
   const shareTitle = state.folderDetail?.folder?.name || document.title;
   if (navigator.share) {
     try {
@@ -92,7 +97,7 @@ export const shareCurrentPage = async function () {
     } catch {}
   }
   await copyText(shareUrl);
-  toast('\u5206\u7c7b\u94fe\u63a5\u5df2\u590d\u5236\uff0c\u53ef\u53d1\u9001\u5230QQ\u6216\u5fae\u4fe1');
+  toast('\u94fe\u63a5\u5df2\u590d\u5236');
 };
 
 export function normalize(value) { return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase(); }

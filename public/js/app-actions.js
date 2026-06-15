@@ -1,6 +1,6 @@
 ﻿import { state, api, toast, copyText, shareCurrentPage, applyTheme, normalize, findAdminFolderById, confirmDangerAction, closeConfirmDialog, getDeleteConfirmationOptions, getReviewConfirmationOptions, getAdminFolderSaveConfirmationOptions, isAdmin, isOwner } from './app-support.js';
 
-import { renderHomePage, renderSiteInfoPage, renderRemoveBgPage, renderAiChatPage, renderAiApiPage, renderMusicPage, renderInspirationPage, renderLinkMatchPage, renderToolsListPage, renderDashboardPage, renderAuthPage, renderMessagePage, renderFolderPage, renderProfileEntryPage, renderProfilePage, openPreview, closeModal, restoreHomePanels, dismissHomeNotice, dismissHomeTools, showHomeNotice, showHomeTools, dismissHomeRecommendation, dismissHomeRecommendationsForToday, applyHomeSearch } from './app-renderers.js';
+import { renderHomePage, renderSiteInfoPage, renderRemoveBgPage, renderAiChatPage, renderAiApiPage, renderMusicPage, renderInspirationPage, renderLinkMatchPage, renderToolsListPage, renderDashboardPage, renderAuthPage, renderMessagePage, renderFolderPage, renderProfileEntryPage, renderProfilePage, openPreview, previewPrevious, previewNext, closeModal, restoreHomePanels, dismissHomeNotice, dismissHomeTools, showHomeNotice, showHomeTools, dismissHomeRecommendation, dismissHomeRecommendationsForToday, applyHomeSearch } from './app-renderers.js';
 
 export async function boot() {
   bindEvents();
@@ -22,6 +22,17 @@ export function bindEvents() {
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
   document.addEventListener('keydown', event => {
+    if (state.previewOpen && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      event.preventDefault();
+      if (event.key === 'ArrowLeft') previewPrevious();
+      else previewNext();
+      return;
+    }
+    if (event.key === 'Escape' && event.target?.matches?.('#search-input')) {
+      event.preventDefault();
+      clearSearch();
+      return;
+    }
     if (event.key !== 'Escape') return;
     closeConfirmDialog(false);
     closeModal();
@@ -49,6 +60,8 @@ export async function route() {
   if (path !== '/' && !path.startsWith('/media/')) {
     try {
       state.folderDetail = await api(`/api/public/folders/${encodeURIComponent(path.slice(1))}`);
+      state.commentsExpanded = false;
+      state.recentCommentId = null;
       return renderFolderPage();
     } catch (error) {
       return renderMessagePage('这个分类暂时打不开', error.message);
@@ -128,6 +141,24 @@ export function onClick(event) {
     document.getElementById('folder-comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
+  if (event.target.closest('[data-scroll-comment-form]')) {
+    event.preventDefault();
+    const form = document.getElementById('folder-comment-form');
+    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    else document.getElementById('folder-comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    form?.querySelector('textarea')?.focus();
+    return;
+  }
+  if (event.target.closest('[data-toggle-comments]')) {
+    event.preventDefault();
+    state.commentsExpanded = !state.commentsExpanded;
+    return renderFolderPage({ preserveScroll: true });
+  }
+  if (event.target.closest('[data-scroll-top]')) {
+    event.preventDefault();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
   if (event.target.closest('[data-delete-comment]')) {
     event.preventDefault();
     return onDeleteComment(event.target.closest('[data-delete-comment]').dataset.deleteComment);
@@ -135,6 +166,13 @@ export function onClick(event) {
   if (event.target.closest('#logout-btn')) return onLogout();
   if (event.target.closest('#modal-close')) return closeModal();
   if (event.target.id === 'image-modal') return closeModal();
+  if (event.target.closest('[data-preview-prev]')) return previewPrevious();
+  if (event.target.closest('[data-preview-next]')) return previewNext();
+  if (event.target.closest('[data-login-download]')) {
+    event.preventDefault();
+    history.pushState({}, '', '/profile');
+    return renderProfileEntryPage();
+  }
   if (event.target.closest('[data-confirm-close]')) return closeConfirmDialog(false);
   if (event.target.closest('[data-confirm-cancel]')) return closeConfirmDialog(false);
   if (event.target.closest('[data-confirm-submit]')) return closeConfirmDialog(true);
@@ -143,6 +181,7 @@ export function onClick(event) {
   if (preview) return openPreview(Number(preview.dataset.preview || 0));
   const toggleShareButton = event.target.closest('[data-toggle-page-share]');
   if (toggleShareButton) {
+    event.preventDefault();
     const panel = document.getElementById('page-share-panel');
     if (panel) panel.classList.toggle('hidden');
     return;
@@ -175,6 +214,10 @@ export function onClick(event) {
   }
   const copy = event.target.closest('[data-copy-url]');
   if (copy) return copyText(copy.dataset.copyUrl || '').then(() => toast('链接已复制'));
+  const sharePanel = document.getElementById('page-share-panel');
+  if (sharePanel && !sharePanel.classList.contains('hidden') && !event.target.closest('#page-share-panel')) {
+    sharePanel.classList.add('hidden');
+  }
   const review = event.target.closest('[data-review-action]');
   if (review) return onReview(review);
   const roleUser = event.target.closest('[data-role-user]');
@@ -236,7 +279,7 @@ export function onChange(event) {
   }
   if (event.target.matches('#category-sort-select')) {
     state.categorySortBy = event.target.value;
-    return renderFolderPage();
+    return renderFolderPage({ preserveScroll: true });
   }
   if (event.target.matches('[data-home-recommend-snooze]') && event.target.checked) {
     return dismissHomeRecommendationsForToday();
@@ -256,10 +299,24 @@ export function onInput(event) {
     applyHomeSearch(event.target.value);
     return;
   }
+  if (event.target.matches('[data-comment-input]')) return updateCommentCounter(event.target);
+  if (event.target.matches('[data-upload-slug]')) {
+    event.target.dataset.touched = 'true';
+    return;
+  }
+  if (event.target.matches('[data-upload-name]')) return syncUploadSlugSuggestion(event.target);
   if (event.target.matches('#sort-select')) {
     state.sortBy = event.target.value;
     return renderHomePage();
   }
+}
+
+export function updateCommentCounter(input) {
+  const counter = document.querySelector('[data-comment-counter]');
+  if (!counter) return;
+  const max = Number(input.getAttribute('maxlength') || 100);
+  const left = Math.max(0, max - input.value.length);
+  counter.textContent = `还可输入 ${left} 字`;
 }
 
 export function onSearchSubmit(form) {
@@ -285,6 +342,44 @@ export function syncFolderUploadFields(input) {
   const form = input.closest('form');
   const nameInput = form?.querySelector('input[name="name"]');
   if (nameInput && !nameInput.value.trim()) nameInput.value = folderName;
+  if (nameInput) syncUploadSlugSuggestion(nameInput);
+}
+
+export function syncUploadSlugSuggestion(nameInput) {
+  const form = nameInput.closest('form');
+  const slugInput = form?.querySelector('[data-upload-slug]');
+  if (!slugInput || slugInput.dataset.touched === 'true') return;
+  const suggested = makeUploadSlug(nameInput.value);
+  if (suggested) slugInput.value = suggested;
+}
+
+export function makeUploadSlug(value) {
+  const ascii = String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  if (ascii.length >= 3) return ascii;
+  return `capoo-${Date.now()}`;
+}
+
+export function hasUploadFiles(form) {
+  const folderFiles = form.querySelector('input[name="folderFiles"]')?.files?.length || 0;
+  const files = form.querySelector('input[name="files"]')?.files?.length || 0;
+  return folderFiles + files > 0;
+}
+
+export function validateUploadForm(form) {
+  const name = String(new FormData(form).get('name') || '').trim();
+  const slug = String(new FormData(form).get('slug') || '').trim();
+  if (!name) return '请先填写作品名称。';
+  if (!slug) return '请先填写公开路径。';
+  if (!/^[a-z0-9-]{3,80}$/.test(slug)) return '公开路径只能使用小写字母、数字和连字符，长度 3-80。';
+  if (!hasUploadFiles(form)) return '请上传文件夹，或选择至少一个图片 / 视频文件。';
+  return '';
 }
 
 export async function onLogin(form) {
@@ -368,11 +463,10 @@ export async function onExportProfile() {
 }
 
 export function onProfileTab(tab) {
-  if (tab === 'works' || tab === 'favorites' || tab === 'info') {
+  if (tab === 'works' || tab === 'favorites' || tab === 'upload' || tab === 'activity' || tab === 'settings') {
     state.profileActiveTab = tab;
     return renderProfilePage();
   }
-  toast('这个功能暂未开放');
 }
 
 export async function onToggleFavorite(button) {
@@ -387,7 +481,7 @@ export async function onToggleFavorite(button) {
     const result = await api(`/api/favorites/${encodeURIComponent(folderId)}`, { method: active ? 'DELETE' : 'POST' });
     if (!inProfilePage && state.folderDetail?.folder?.id === folderId) {
       state.folderDetail.folder.isFavorited = Boolean(result.favorited);
-      renderFolderPage();
+      renderFolderPage({ preserveScroll: true });
     } else if (state.profile?.isOwner) {
       state.profile = await api('/api/profile/me');
       renderProfilePage();
@@ -411,7 +505,7 @@ export async function onToggleFolderLike(button) {
       state.folderDetail.folder.isLiked = Boolean(result.isLiked);
       state.folderDetail.folder.likeCount = Number(result.likeCount || 0);
       state.folderDetail.folder.commentCount = Number(result.commentCount || state.folderDetail.folder.commentCount || 0);
-      renderFolderPage();
+      renderFolderPage({ preserveScroll: true });
     }
     toast(result.isLiked ? '已点赞' : '已取消点赞');
   } catch (error) {
@@ -431,7 +525,7 @@ export async function onToggleFollowUser(button) {
     if (state.folderDetail?.folder?.ownerPublicId === Number(publicId)) {
       state.folderDetail.folder.isFollowingOwner = Boolean(result.isFollowingOwner);
       state.folderDetail.folder.followerCount = Number(result.followerCount || 0);
-      renderFolderPage();
+      renderFolderPage({ preserveScroll: true });
     }
     toast(result.isFollowingOwner ? '已关注发布者' : '已取消关注');
   } catch (error) {
@@ -458,8 +552,21 @@ export async function onSubmitFolderComment(form) {
     });
     state.folderDetail.comments = result.comments || [];
     state.folderDetail.folder.commentCount = Number(result.commentCount || state.folderDetail.comments.length);
+    state.commentsExpanded = true;
+    const viewerPublicId = state.bootstrap?.viewer?.publicId;
+    const ownMatches = state.folderDetail.comments.filter(comment =>
+      String(comment.content || '') === content &&
+      (!viewerPublicId || String(comment.authorPublicId || '') === String(viewerPublicId))
+    );
+    const newestComment = ownMatches.at(-1) || state.folderDetail.comments.at(-1);
+    state.recentCommentId = newestComment?.id || null;
     renderFolderPage();
-    document.getElementById('folder-comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    requestAnimationFrame(() => {
+      const target = state.recentCommentId
+        ? document.querySelector(`[data-comment-id="${CSS.escape(String(state.recentCommentId))}"]`)
+        : document.getElementById('folder-comments');
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
     toast('评论已发布');
   } catch (error) {
     toast(error.message, 'error');
@@ -540,11 +647,23 @@ export async function onLogout() {
 }
 
 export async function onUpload(form) {
+  const validationError = validateUploadForm(form);
+  if (validationError) {
+    toast(validationError, 'error');
+    return;
+  }
+  const inProfileUpload = form.dataset.uploadContext === 'profile' || location.pathname.startsWith('/profile/');
   try {
     const result = await api('/api/dashboard/folders', { method: 'POST', body: new FormData(form) });
     form.reset();
     await refreshBootstrap();
-    await renderDashboardPage();
+    if (inProfileUpload) {
+      state.profile = await api('/api/profile/me');
+      state.profileActiveTab = 'works';
+      await renderProfilePage();
+    } else {
+      await renderDashboardPage();
+    }
     toast(result.message || '\u6587\u4ef6\u5939\u5df2\u4fdd\u5b58');
   } catch (error) {
     toast(error.message, 'error');
@@ -762,11 +881,17 @@ export async function onDelete(url, success, refreshBootstrapFirst = false) {
 export async function onAppendAssets(form) {
   const folderId = form.getAttribute('data-folder-edit-form');
   if (!folderId) return;
+  const inProfilePage = location.pathname.startsWith('/profile/');
   try {
     const result = await api(`/api/dashboard/folders/${folderId}/assets`, { method: 'POST', body: new FormData(form) });
     form.reset();
     await refreshBootstrap();
-    await renderDashboardPage();
+    if (inProfilePage) {
+      state.profile = await api('/api/profile/me');
+      await renderProfilePage();
+    } else {
+      await renderDashboardPage();
+    }
     toast(result.message || '内容已追加');
   } catch (error) {
     toast(error.message, 'error');
@@ -774,6 +899,7 @@ export async function onAppendAssets(form) {
 }
 
 export async function onDeleteAsset(folderId, assetId, manageMode = 'owner') {
+  const inProfilePage = location.pathname.startsWith('/profile/');
   try {
     const confirmed = await confirmDangerAction({
       title: '确认删除这个内容？',
@@ -786,7 +912,12 @@ export async function onDeleteAsset(folderId, assetId, manageMode = 'owner') {
       : `/api/dashboard/folders/${folderId}/assets/${assetId}`;
     const result = await api(url, { method: 'DELETE' });
     await refreshBootstrap();
-    await renderDashboardPage();
+    if (inProfilePage) {
+      state.profile = await api('/api/profile/me');
+      await renderProfilePage();
+    } else {
+      await renderDashboardPage();
+    }
     toast(result.message || '内容已删除');
   } catch (error) {
     toast(error.message, 'error');
@@ -794,10 +925,17 @@ export async function onDeleteAsset(folderId, assetId, manageMode = 'owner') {
 }
 
 export async function onResubmitFolder(folderId) {
+  const inProfilePage = location.pathname.startsWith('/profile/');
   try {
     const result = await api(`/api/dashboard/folders/${folderId}/resubmit`, { method: 'POST' });
     await refreshBootstrap();
-    await renderDashboardPage();
+    if (inProfilePage) {
+      state.profile = await api('/api/profile/me');
+      state.profileActiveTab = 'works';
+      await renderProfilePage();
+    } else {
+      await renderDashboardPage();
+    }
     toast(result.message || '已重新提交审核');
   } catch (error) {
     toast(error.message, 'error');

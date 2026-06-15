@@ -1978,7 +1978,7 @@ async function getOwnProfile(env, user) {
   const fresh = await getProfileUserByPublicId(env, publicId);
   return {
     viewer: serializeProfileUser(fresh, { includePrivate: true }),
-    folders: await getPublishedFoldersForProfile(env, fresh.id),
+    folders: await getFoldersForUser(env, fresh.id),
     favorites: await getFavoriteFolders(env, fresh.id),
     activities: await getRecentProfileActivity(env, fresh.id),
     stats: await getProfileStats(env, fresh.id),

@@ -4,6 +4,9 @@ import { normalize } from './app-support.js';
 
 let homeIntroTimer = null;
 let homeRestoreHintTimer = null;
+const HOME_INTRO_DISMISSED_UNTIL_KEY = 'mmc_home_intro_dismissed_until';
+const HOME_NOTICE_DISMISSED_UNTIL_KEY = 'mmc_home_notice_dismissed_until';
+const HOME_TOOLS_DISMISSED_UNTIL_KEY = 'mmc_home_tools_dismissed_until';
 const HOME_RECOMMEND_SNOOZE_KEY = 'mmc_home_recommend_snooze_date';
 const LINK_MATCH_RECOMMEND_UNTIL = '2026-06-01';
 const LINK_MATCH_TOOL_HREF = '/tools/link-match';
@@ -18,6 +21,39 @@ const HOME_RECOMMEND_TOOLS = [
   { badge: '趣味测试', title: 'CSTI 人格测试', summary: '偏 CS 对局风格的轻量测试。', href: '/tools/csti/', icon: 'fa-crosshairs' },
   { badge: '趣味测试', title: 'YSTI 原神人格测试', summary: '原神主题人格测试和角色画像。', href: '/tools/ysti/', icon: 'fa-star' }
 ];
+const HOME_PANEL_DISMISS_DAYS = 7;
+
+function dateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysKey(baseDate, days) {
+  const next = new Date(baseDate);
+  next.setDate(next.getDate() + days);
+  return dateKey(next);
+}
+
+function isKeyActiveUntil(key) {
+  const until = localStorage.getItem(key);
+  return Boolean(until && dateKey() < until);
+}
+
+function setKeyUntil(key, days) {
+  localStorage.setItem(key, addDaysKey(new Date(), days));
+}
+
+function clearKeyUntil(key) {
+  localStorage.removeItem(key);
+}
+
+function syncHomePanelPreferences() {
+  state.homeIntroDismissed = isKeyActiveUntil(HOME_INTRO_DISMISSED_UNTIL_KEY);
+  state.homeNoticeDismissed = isKeyActiveUntil(HOME_NOTICE_DISMISSED_UNTIL_KEY);
+  state.homeToolsDismissed = isKeyActiveUntil(HOME_TOOLS_DISMISSED_UNTIL_KEY);
+}
 
 async function loadDashboardData() {
   if (!state.bootstrap?.viewer) return;
@@ -427,7 +463,6 @@ export async function renderDashboardPage() {
   const uploadTip = isAdmin()
     ? '你上传的内容会直接发布，并显示在前台页面。'
     : '你上传的内容会先进入审核，审核通过后才会显示在前台。';
-  const uploadButtonText = isAdmin() ? '上传并直接发布' : '上传并提交审核';
   document.title = '猫猫虫咖波表情包仓库 - 后台';
   app.innerHTML = `
     ${header({ title: `<a href="/" class="site-title-link" data-link aria-label="返回首页"><i class="fas fa-cat"></i> 猫猫虫咖波表情包仓库</a>`, subtitle: `后台工作台 · 当前账号 ${viewer.displayName}`, stats: roleLabel(viewer.role), htmlTitle: true })}
@@ -437,7 +472,7 @@ export async function renderDashboardPage() {
         <div class="admin-hero-actions"><a class="site-info-backlink" href="/site-info" data-link>返回公告页</a><button class="theme-toggle admin-logout-btn" id="logout-btn" title="退出登录"><i class="fas fa-right-from-bracket"></i></button></div>
       </section>
       <section class="admin-panels">
-        ${adminPanel(uploadTitle, 'upload', `<form id="folder-form" class="admin-form"><label class="field"><span>文件夹名称</span><input name="name" required></label><label class="field"><span>公开路径</span><input name="slug" placeholder="example-folder" pattern="[a-z0-9-]{3,80}" title="请填写不重复的英文小写路径，例如 example-folder" required><small class="field-hint">请填写不重复的英文小写路径，例如 <code>example-folder</code>。最终访问地址会显示为：域名/你的公开路径</small></label><label class="field"><span>说明</span><textarea name="description"></textarea></label><label class="field"><span>直接上传一个文件夹</span><input data-folder-picker name="folderFiles" type="file" webkitdirectory directory multiple></label><label class="field"><span>或上传多个图片 / 视频文件</span><input name="files" type="file" multiple accept="image/*,video/mp4,video/webm,video/quicktime"></label><p class="small">两种方式任选一种即可；如果选择文件夹，系统会自动尝试填入文件夹名称。</p><button class="footer-btn" type="submit">${uploadButtonText}</button></form>`, uploadTip)}
+        ${adminPanel(uploadTitle, 'upload', uploadFolderForm({ mode: 'dashboard' }), uploadTip)}
         ${adminPanel('我的文件夹', 'mine', `<div class="admin-card-list">${folders.length ? folders.map(ownedFolderCard).join('') : '<p class="small">你还没有上传任何文件夹。</p>'}</div>`)}
       </section>
       ${isAdmin() ? `<section class="admin-panels">${adminPanel('待审核内容', 'reviews', `<div class="admin-card-list">${reviews.length ? reviews.map(reviewCard).join('') : '<p class="small">当前没有待审核内容。</p>'}</div>`)}${adminPanel('现有文件夹管理', 'existingFolders', `<label class="field"><span>搜索文件夹</span><input id="admin-folder-search" value="${attr(state.adminFolderSearch)}" placeholder="按名称、路径或上传者搜索"></label><div class="admin-card-list">${filterAdminFolders(existingFolders).length ? filterAdminFolders(existingFolders).map(adminFolderCard).join('') : '<p class="small">没有找到匹配的文件夹。</p>'}</div>`)} </section>` : ''}
@@ -449,14 +484,14 @@ export async function renderDashboardPage() {
 
 export function renderAuthPage() {
   const allowRegistration = state.bootstrap?.site?.allowPublicRegistration !== false;
-  document.title = '猫猫虫咖波表情包仓库 - 登录后台';
+  document.title = '猫猫虫咖波表情包仓库 - 后台工作台';
   app.innerHTML = `
-    ${header({ title: `<a href="/" class="site-title-link" data-link aria-label="返回首页"><i class="fas fa-cat"></i> 猫猫虫咖波表情包仓库</a>`, subtitle: '登录后台后可以投稿、管理与审核内容', stats: '后台入口', htmlTitle: true })}
+    ${header({ title: `<a href="/" class="site-title-link" data-link aria-label="返回首页"><i class="fas fa-cat"></i> 猫猫虫咖波表情包仓库</a>`, subtitle: '后台工作台，用于投稿管理、审核、公告和站务', stats: '后台入口', htmlTitle: true })}
     <main class="container admin-page">
       <section class="admin-panels">
         <article class="admin-panel">
-          <h3>登录后台</h3>
-          <p class="small">已有账号可直接登录，登录成功后会自动进入后台工作台。</p>
+          <h3>后台工作台登录</h3>
+          <p class="small">这里保留给投稿管理、审核、公告和站务使用；普通浏览和投稿也可以从个人中心进入。</p>
           <form id="login-form" class="admin-form">
             <label class="field"><span>用户名</span><input name="username" autocomplete="username" required></label>
             <label class="field"><span>密码</span><input type="password" name="password" autocomplete="current-password" required></label>
@@ -469,7 +504,7 @@ export function renderAuthPage() {
         ${allowRegistration ? `
         <article class="admin-panel">
           <h3>注册账号</h3>
-          <p class="small">注册后即可登录后台，上传和管理你的内容。</p>
+          <p class="small">注册后可收藏、评论、投稿；需要站务操作时再进入后台工作台。</p>
           <form id="register-form" class="admin-form">
             <label class="field"><span>显示名称</span><input name="displayName" autocomplete="nickname" minlength="2" maxlength="32" required></label>
             <label class="field"><span>用户名</span><input name="username" autocomplete="username" minlength="3" maxlength="24" required></label>
@@ -509,7 +544,7 @@ export function renderMessagePage(title, message) {
 
 export function backendEntry() {
   const viewer = state.bootstrap?.viewer;
-  return `<section class="support-card backend-entry-card"><div class="support-card-head"><span class="notice-badge">站务入口</span><h2>后台入口已经移动到这里</h2></div><p class="support-summary">普通访客只需要浏览公开页面；如果你需要投稿、审核、改公告或处理站务，请从这里进入后台。</p><div class="support-points"><p>${viewer ? `当前已登录：${escape(viewer.displayName)}，${escape(roleLabel(viewer.role))}` : '当前未登录后台账号。'}</p></div><a class="support-open-btn admin-entry-btn" href="/dashboard" data-link>${viewer ? '进入后台工作台' : '登录后台'}</a><p class="support-legal-note">为了减少首页干扰，后台入口不再单独放在首页或分类页里。</p></section>`;
+  return `<section class="support-card backend-entry-card"><div class="support-card-head"><span class="notice-badge">站务入口</span><h2>后台入口已经移动到这里</h2></div><p class="support-summary">普通用户投稿请走个人中心；审核、改公告、账号和 AI API 等站务请从这里进入后台。</p><div class="support-points"><p>${viewer ? `当前已登录：${escape(viewer.displayName)}，${escape(roleLabel(viewer.role))}` : '当前未登录后台账号。'}</p></div><a class="support-open-btn admin-entry-btn" href="/dashboard" data-link>${viewer ? '进入后台工作台' : '登录后台'}</a><p class="support-legal-note">为了减少首页干扰，后台入口不再单独放在首页或分类页里。</p></section>`;
 }
 
 export function profileEntryLink() {
@@ -519,12 +554,15 @@ export function profileEntryLink() {
 }
 
 export function homeQuickEntries(showNotice, showTools) {
-  const buttons = [profileEntryLink()];
-  if (!showNotice) {
-    buttons.push('<button class="home-quick-btn" type="button" data-home-show-notice="1"><i class="fas fa-bullhorn"></i> 公告</button>');
-  }
+  const buttons = [
+    profileEntryLink(),
+    '<a class="home-quick-btn" href="/tools/list" data-link><i class="fas fa-toolbox"></i> 工具列表</a>',
+    showNotice
+      ? '<a class="home-quick-btn" href="/site-info" data-link><i class="fas fa-bullhorn"></i> 公告</a>'
+      : '<button class="home-quick-btn" type="button" data-home-show-notice="1"><i class="fas fa-bullhorn"></i> 公告</button>'
+  ];
   if (!showTools) {
-    buttons.push('<button class="home-quick-btn" type="button" data-home-show-tools="1"><i class="fas fa-toolbox"></i> 工具</button>');
+    buttons.push('<button class="home-quick-btn home-quick-secondary" type="button" data-home-show-tools="1"><i class="fas fa-chevron-down"></i> 工具入口</button>');
   }
   return `<section class="home-quick-entry-row">${buttons.join('')}</section>`;
 }
@@ -533,6 +571,29 @@ export const ownedFolderCard = function (folder) {
   const editable = ['rejected', 'draft'].includes(folder.status);
   return `<article class="admin-item-card"><div class="folder-status"><span class="notice-badge">${statusLabel(folder.status)}</span>${folder.publicUrl ? `<a href="${folder.publicUrl}" data-link class="site-info-backlink mini-link">查看页面</a>` : ''}</div><h4>${escape(folder.name)}</h4>${folder.status === 'offline' ? '' : `<p>${escape(folder.description || '暂无说明')}</p>`}${folder.review_note ? `<p class="small">审核备注：${escape(folder.review_note)}</p>` : ''}${folder.status === 'offline' ? '' : renderFolderAssetGallery(folder, { editable })}${editable ? renderFolderEditTools(folder) : ''}</article>`;
 };
+
+export function uploadFolderForm({ mode = 'dashboard' } = {}) {
+  const adminUpload = isAdmin();
+  const buttonText = adminUpload ? '上传并直接发布' : '提交审核';
+  const hint = mode === 'profile'
+    ? adminUpload ? '管理员上传会直接发布。' : '提交后会进入审核，审核通过后公开显示。'
+    : '两种方式任选一种即可；如果选择文件夹，系统会自动尝试填入文件夹名称。';
+  return `
+    <form id="folder-form" class="admin-form upload-folder-form" data-upload-context="${attr(mode)}">
+      <label class="field"><span>作品名称</span><input name="name" data-upload-name required></label>
+      <label class="field"><span>公开路径</span><input name="slug" data-upload-slug placeholder="capoo-${Date.now()}" pattern="[a-z0-9-]{3,80}" title="请填写不重复的英文小写路径，例如 example-folder" required><small class="field-hint">只支持小写字母、数字和连字符，长度 3-80。中文名称会自动给出安全路径建议，你也可以手动修改。</small></label>
+      <label class="field"><span>作品说明</span><textarea name="description" maxlength="600"></textarea></label>
+      <label class="field"><span>上传文件夹</span><input data-folder-picker name="folderFiles" type="file" webkitdirectory directory multiple></label>
+      <label class="field"><span>或上传多个图片 / 视频</span><input name="files" type="file" multiple accept="image/*,video/mp4,video/webm,video/quicktime"></label>
+      <p class="small">支持图片、mp4、webm、mov。${hint}</p>
+      <button class="footer-btn" type="submit">${buttonText}</button>
+    </form>
+  `;
+}
+
+export function profileAdminNotice() {
+  return `<section class="admin-panel profile-admin-notice"><div class="admin-panel-body"><div class="folder-status"><span class="notice-badge">站务权限</span><span class="small">你可以从个人中心投稿，也可以进入后台处理审核、公告、账号和 AI API。</span></div><div class="review-button-row"><a class="footer-btn footer-link-btn" href="/dashboard" data-link>进入后台工作台</a><a class="site-info-backlink" href="/dashboard" data-link>查看待审核内容</a></div></div></section>`;
+}
 
 export function noticeEntry(item) {
   return `<article class="notice-entry"><div class="notice-entry-head"><span class="notice-badge">${formatDate(item.updated_at, true)}</span><h3>${escape(item.title)}</h3></div><p class="notice-summary">${escape(item.content || '')}</p></article>`;
@@ -605,8 +666,8 @@ export function renderProfileEntryPage() {
     ${header({ title: `<a href="/" class="site-title-link" data-link aria-label="返回首页"><i class="fas fa-cat"></i> 猫猫虫咖波表情包仓库</a>`, subtitle: '登录或注册后进入个人中心', stats: '个人中心', htmlTitle: true })}
     <main class="container admin-page">
       <section class="site-info-hero">
-        <div class="site-info-hero-text"><span class="site-info-kicker">个人中心</span><h2>登录后查看收藏、作品和账号信息</h2><p>这里是普通用户的个人入口；原来的后台工作台仍然保留。</p></div>
-        <div class="review-button-row"><a class="site-info-backlink" href="/" data-link>返回首页</a><a class="site-info-backlink" href="/dashboard" data-link>旧后台入口</a></div>
+        <div class="site-info-hero-text"><span class="site-info-kicker">个人中心</span><h2>登录个人中心</h2><p>注册后可收藏、评论、投稿，并在这里查看审核状态和管理自己的作品。</p></div>
+        <div class="review-button-row"><a class="site-info-backlink" href="/" data-link>返回首页</a><a class="site-info-backlink" href="/dashboard" data-link>后台工作台</a></div>
       </section>
       <section class="admin-panels">
         <article class="admin-panel">
@@ -646,13 +707,7 @@ export function renderProfilePage() {
   const activities = profile.activities || [];
   const stats = profile.stats || {};
   const activeTab = state.profileActiveTab || 'works';
-  const listed = own && activeTab === 'favorites' ? favorites : folders;
-  const contentTitle = own && activeTab === 'favorites' ? '我的收藏' : own && activeTab === 'info' ? '我的信息' : own ? '我的作品' : '发布的内容';
-  const contentIntro = own && activeTab === 'favorites'
-    ? '这里显示你收藏过的分类。'
-    : own && activeTab === 'info'
-      ? '按时间从晚到早展示你在本站留下的动态。'
-      : '按修改时间从晚到早排序。';
+  const tabMeta = profileTabMeta(activeTab, own);
   document.title = `${user.displayName || '个人中心'} - 个人中心`;
   app.innerHTML = `
     ${header({ title: `<a href="/" class="site-title-link" data-link aria-label="返回首页"><i class="fas fa-cat"></i> 猫猫虫咖波表情包仓库</a>`, subtitle: `${escape(user.displayName || '用户')} 的个人中心`, stats: `ID ${escape(user.id || '')}`, htmlTitle: true })}
@@ -664,14 +719,15 @@ export function renderProfilePage() {
           <p>数字 ID：${escape(user.id || '')}</p>
           ${profileStatsGrid(stats, 'profile-hero-stats')}
         </div>
-        <div class="review-button-row"><a class="site-info-backlink" href="/" data-link>返回首页</a>${own ? '<a class="site-info-backlink" href="/dashboard" data-link>旧后台工作台</a>' : ''}</div>
+        <div class="review-button-row profile-hero-actions"><a class="site-info-backlink" href="/" data-link>返回首页</a>${own ? '<button class="footer-btn footer-btn-small" type="button" data-profile-tab="upload">上传作品</button><button class="copy-btn" type="button" data-profile-tab="settings">编辑资料</button>' : ''}${own && isAdmin() ? '<a class="site-info-backlink" href="/dashboard" data-link>后台工作台</a>' : ''}</div>
       </section>
-      ${own ? profilePrivatePanel(user) : profilePublicPanel(user)}
+      ${own && isAdmin() ? profileAdminNotice() : ''}
+      ${own ? '' : profilePublicPanel(user)}
       ${own ? profileFeatureTabs(activeTab) : ''}
       <section class="admin-panel profile-content-panel">
-        <div class="admin-panel-head"><div><h3>${contentTitle}</h3><p class="small">${contentIntro}</p></div></div>
+        <div class="admin-panel-head"><div><h3>${tabMeta.title}</h3><p class="small">${tabMeta.intro}</p></div></div>
         <div class="admin-panel-body">
-          ${own && activeTab === 'info' ? profileInfoOverview(stats, activities) : `<div class="admin-card-list">${listed.length ? listed.map(profileFolderCard).join('') : '<p class="small">这里暂时没有内容。</p>'}</div>`}
+          ${profileTabContent(activeTab, { own, folders, favorites, activities, stats, user })}
         </div>
       </section>
     </main>
@@ -680,9 +736,28 @@ export function renderProfilePage() {
   `;
 }
 
+export function profileTabMeta(activeTab, own) {
+  if (!own) return { title: '发布的内容', intro: '按修改时间从晚到早排序。' };
+  return ({
+    works: { title: '我的作品', intro: '查看投稿审核状态，管理被驳回或待修改的作品。' },
+    favorites: { title: '我的收藏', intro: '按最近收藏优先展示，方便快速回到喜欢的作品。' },
+    upload: { title: '上传作品', intro: isAdmin() ? '管理员上传会直接发布到公开页面。' : '提交作品，审核通过后公开。' },
+    activity: { title: '我的动态', intro: '作品、评论、点赞、关注和收到的互动都会记录在这里。' },
+    settings: { title: '账号设置', intro: '修改显示名称、查看用户名，并在需要时导出账号 txt。' }
+  })[activeTab] || { title: '我的作品', intro: '查看投稿审核状态，管理自己的作品。' };
+}
+
+export function profileTabContent(activeTab, context) {
+  if (!context.own) return `<div class="admin-card-list">${context.folders.length ? context.folders.map(profileFolderCard).join('') : '<p class="small">这里暂时没有内容。</p>'}</div>`;
+  if (activeTab === 'favorites') return profileFavoritesPanel(context.favorites);
+  if (activeTab === 'upload') return profileUploadPanel();
+  if (activeTab === 'activity') return profileActivityPanel(context.activities);
+  if (activeTab === 'settings') return profilePrivatePanel(context.user);
+  return profileWorksPanel(context.folders);
+}
+
 export function profilePrivatePanel(user) {
-  const stats = state.profile?.stats || {};
-  return `<section class="admin-panel profile-info-panel"><div class="admin-panel-head"><div><h3>账号信息</h3><p class="small">显示名称可以修改；用户名和密码不可修改。</p></div></div><div class="admin-panel-body">${profileStatsGrid(stats, 'profile-info-stats')}<form id="profile-name-form" class="admin-form"><label class="field"><span>显示名称</span><input name="displayName" value="${attr(user.displayName || '')}" required></label><label class="field"><span>用户名</span><input value="${attr(user.username || '')}" readonly></label><label class="field"><span>密码</span><input value="********" readonly></label><div class="review-button-row"><button class="footer-btn" type="submit">保存信息</button><button class="copy-btn" type="button" data-export-profile>保存账号 txt</button></div></form></div></section>`;
+  return `<div class="profile-settings-panel"><form id="profile-name-form" class="admin-form"><label class="field"><span>显示名称</span><input name="displayName" value="${attr(user.displayName || '')}" required></label><label class="field"><span>用户名</span><input value="${attr(user.username || '')}" readonly></label><label class="field"><span>密码</span><input value="********" readonly></label><div class="review-button-row"><button class="footer-btn" type="submit">保存信息</button><button class="copy-btn" type="button" data-export-profile>保存账号 txt</button></div><p class="small">导出账号 txt 时仍需要输入当前密码；网站不会保存明文密码。</p></form><article class="admin-item-card profile-contact-card"><span class="notice-badge">联系我们</span><p>投稿、侵权删除或站务沟通可以通过页脚联系方式处理。</p><a class="site-info-backlink mini-link" href="/site-info" data-link>查看站务说明</a></article></div>`;
 }
 
 export function profilePublicPanel(user) {
@@ -717,22 +792,88 @@ export function profileFeatureTabs(activeTab) {
   const tabs = [
     ['works', '我的作品'],
     ['favorites', '我的收藏'],
-    ['info', '我的信息'],
     ['upload', '上传作品'],
-    ['blacklist', '黑名单'],
-    ['contact', '联系我们']
+    ['activity', '我的动态'],
+    ['settings', '账号设置']
   ];
   return `<section class="profile-feature-tabs">${tabs.map(([key, label]) => `<button class="${activeTab === key ? 'is-active' : ''}" type="button" data-profile-tab="${key}">${label}</button>`).join('')}</section>`;
+}
+
+export function profileWorksPanel(folders) {
+  if (!folders.length) {
+    return `<div class="empty-state profile-empty-state"><h3>还没有上传作品</h3><p>从“上传作品”提交内容，审核进度会显示在这里。</p><button class="footer-btn footer-btn-small" type="button" data-profile-tab="upload">上传作品</button></div>`;
+  }
+  const groups = [
+    ['pending_review', '待审核', '等待审核，审核期间不需要反复提交。'],
+    ['published', '已公开', '已经公开显示，可以查看页面或复制链接。'],
+    ['rejected', '被驳回', '查看审核备注，修改后重新提交。'],
+    ['draft', '草稿/待修改', '继续编辑资源，完成后重新提交审核。'],
+    ['offline', '已下架', '已下架，如需恢复请联系站务。']
+  ];
+  return `<div class="profile-work-groups">${groups.map(([status, title, intro]) => {
+    const items = folders.filter(folder => folder.status === status);
+    if (!items.length) return '';
+    return `<section class="profile-work-group profile-work-group-${status}"><div class="profile-work-group-head"><h4>${title}</h4><p class="small">${intro}</p></div><div class="admin-card-list">${items.map(profileOwnedFolderCard).join('')}</div></section>`;
+  }).join('')}</div>`;
+}
+
+export function profileOwnedFolderCard(folder) {
+  const editable = ['rejected', 'draft'].includes(folder.status);
+  return `
+    <article class="admin-item-card profile-owned-card profile-owned-${attr(folder.status)}">
+      <div class="folder-status"><span class="notice-badge">${statusLabel(folder.status)}</span><span class="small">${Number(folder.assetCount || folder.assets?.length || 0)} 项资源</span></div>
+      <h4>${escape(folder.name)}</h4>
+      <p>${escape(folder.description || '暂无说明')}</p>
+      ${profileFolderNextStep(folder)}
+      ${profileFolderAssetPreview(folder)}
+      ${editable ? renderFolderEditTools(folder) : ''}
+    </article>
+  `;
+}
+
+export function profileFolderNextStep(folder) {
+  if (folder.status === 'pending_review') return '<p class="small profile-status-tip">等待审核中，通过后会自动公开。</p>';
+  if (folder.status === 'published') {
+    const url = folder.publicUrl || `/${encodeURIComponent(folder.slug || '')}`;
+    return `<div class="review-button-row admin-card-actions"><a class="footer-btn footer-link-btn" href="${url}" data-link>查看公开页</a><button class="copy-btn" type="button" data-copy-url="${attr(new URL(url, location.origin).toString())}">复制链接</button></div>`;
+  }
+  if (folder.status === 'rejected') return `<div class="profile-review-note"><strong>审核备注</strong><p>${escape(folder.review_note || '请按站务要求修改后重新提交。')}</p></div>`;
+  if (folder.status === 'draft') return '<p class="small profile-status-tip">继续补充资源，确认无误后重新提交审核。</p>';
+  if (folder.status === 'offline') return '<p class="small profile-status-tip">已下架，如需恢复请联系站务。</p>';
+  return '';
+}
+
+export function profileFolderAssetPreview(folder) {
+  const assets = folder.assets || [];
+  if (!assets.length || folder.status === 'offline') return '';
+  const visible = assets.slice(0, 4);
+  const more = assets.length - visible.length;
+  return `<div class="profile-asset-strip">${visible.map(asset => `<div class="profile-asset-thumb">${asset.previewUrl ? mediaHtml(asset.previewUrl, asset.original_name, asset.media_kind === 'video') : '<span>不可预览</span>'}</div>`).join('')}${more > 0 ? `<div class="profile-asset-more">+${more}</div>` : ''}</div>`;
+}
+
+export function profileUploadPanel() {
+  return `<div class="profile-upload-panel"><article class="admin-item-card profile-upload-tip"><span class="notice-badge">投稿说明</span><p>${isAdmin() ? '你是管理员，上传后会直接公开。' : '普通用户提交作品后会进入待审核状态，审核通过后公开。'}</p></article>${uploadFolderForm({ mode: 'profile' })}</div>`;
+}
+
+export function profileFavoritesPanel(favorites) {
+  if (!favorites.length) {
+    return `<div class="empty-state profile-empty-state"><h3>还没有收藏</h3><p>去首页找表情包，喜欢的分类可以加入收藏。</p><a class="footer-btn footer-link-btn" href="/" data-link>去首页找表情包</a></div>`;
+  }
+  return `<div class="profile-favorites-summary"><strong>${favorites.length}</strong><span>个收藏</span></div><div class="admin-card-list">${favorites.map(profileFolderCard).join('')}</div>`;
+}
+
+export function profileActivityPanel(activities) {
+  return activities.length ? profileActivityFeed(activities) : '<div class="empty-state profile-empty-state"><h3>还没有动态</h3><p>先去收藏或评论一个作品，相关记录会显示在这里。</p><a class="footer-btn footer-link-btn" href="/" data-link>去首页看看</a></div>';
 }
 
 export function profileFolderCard(folder) {
   const activeTab = state.profileActiveTab || 'works';
   const canRemoveFavorite = state.profile?.isOwner && activeTab === 'favorites';
-  return `<article class="admin-item-card profile-folder-card"><div class="folder-status"><span class="notice-badge">${Number(folder.count) || 0} 项内容</span>${folder.ownerPublicId ? `<a class="site-info-backlink mini-link" href="/profile/${folder.ownerPublicId}" data-link>${escape(folder.ownerName || '发布者')}</a>` : ''}</div><h4>${escape(folder.name)}</h4><p>${escape(folder.description || '暂无说明')}</p><div class="review-button-row admin-card-actions"><a class="footer-btn footer-link-btn" href="/${encodeURIComponent(folder.slug)}" data-link>查看内容</a>${canRemoveFavorite ? `<button class="copy-btn" type="button" data-favorite-folder="${folder.id}" data-favorited="true">取消收藏</button>` : ''}</div></article>`;
+  const url = `/${encodeURIComponent(folder.slug)}`;
+  return `<article class="admin-item-card profile-folder-card"><div class="folder-status"><span class="notice-badge">${Number(folder.count) || 0} 项内容</span>${folder.ownerPublicId ? `<a class="site-info-backlink mini-link" href="/profile/${folder.ownerPublicId}" data-link>${escape(folder.ownerName || '发布者')}</a>` : ''}</div><h4>${escape(folder.name)}</h4><p>${escape(folder.description || '暂无说明')}</p><p class="small">发布者：${escape(folder.ownerName || '匿名用户')} · 资源数：${Number(folder.count) || 0}</p><div class="review-button-row admin-card-actions"><a class="footer-btn footer-link-btn" href="${url}" data-link>查看内容</a><button class="copy-btn" type="button" data-copy-url="${attr(new URL(url, location.origin).toString())}">复制链接</button>${canRemoveFavorite ? `<button class="copy-btn" type="button" data-favorite-folder="${folder.id}" data-favorited="true">取消收藏</button>` : ''}</div></article>`;
 }
 
 export function profileActivityFeed(activities) {
-  if (!activities.length) return '<p class="small">还没有可展示的动态。</p>';
   return `<div class="profile-activity-list">${activities.map(activity => `
     <article class="admin-item-card profile-activity-card">
       <div class="folder-status"><span class="notice-badge">${escape(profileActivityTypeLabel(activity.type))}</span><span class="small">${formatDate(activity.time)}</span></div>
@@ -820,7 +961,7 @@ export function compactFooter() {
 }
 
 export function fullFooter() {
-  return `<footer><div class="container"><div class="footer-content"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>本站致力于收集和分享猫猫虫咖波的图片、表情包和视频内容，所有资源均来自网络投稿，仅供娱乐使用。</p><p>关于猫猫虫官方联动《我的英雄学院》：本站立场明确且不会含糊。我们坚定热爱中国，坚定维护国家主权、统一和领土完整，坚定反对任何歪曲侵略历史、美化军国主义、伤害中华民族感情的内容。中华民族伟大复兴的大势不可阻挡，国家统一的大义不容挑战，任何“台独”分裂言行都注定失败。希望广大同胞都站在历史正确的一边，以身为堂堂正正的中国人为荣，铭记抗战苦难与先烈牺牲。本站只欢迎可爱、健康、积极的猫猫虫咖波内容，不欢迎任何伤害国家和民族感情的杂音。</p><p>如果您是表情包作者并希望删除或添加您的作品，请通过下方按钮联系我们。当前页面就是完整公告与站务页。</p></div><div class="footer-section"><h3><i class="fas fa-upload"></i> 投稿表情包</h3><p>欢迎投稿新的猫猫虫咖波表情包！请确保表情包内容健康，不包含龙图等不良内容。</p><p>投稿规则：先注册并登录后台账号；进入后台工作台后新建文件夹；填写分类名称、公开路径和说明；上传表情包图片或视频；提交后等待审核，通过后才会公开显示。</p><p>建议优先上传命名清晰、分类明确、内容完整的资源，这样审核会更顺畅。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn" href="/dashboard" data-link>前往后台投稿</a></div></div><div class="footer-section"><h3><i class="fas fa-shield-heart"></i> 侵权删除</h3><p>如果您发现任何侵权内容，或希望删除某一个表情包，请通过QQ联系我们。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn qq-contact-btn" href="https://qm.qq.com/q/AKPiThhsQg" target="_blank" rel="noreferrer">通过QQ联系删除</a></div><p>点击上方按钮将跳转到QQ聊天页面，请直接发送表情包链接或说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 · 本网站仅为个人收藏用途 · 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
+  return `<footer><div class="container"><div class="footer-content"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>本站致力于收集和分享猫猫虫咖波的图片、表情包和视频内容，所有资源均来自网络投稿，仅供娱乐使用。</p><p>关于猫猫虫官方联动《我的英雄学院》：本站立场明确且不会含糊。我们坚定热爱中国，坚定维护国家主权、统一和领土完整，坚定反对任何歪曲侵略历史、美化军国主义、伤害中华民族感情的内容。中华民族伟大复兴的大势不可阻挡，国家统一的大义不容挑战，任何“台独”分裂言行都注定失败。希望广大同胞都站在历史正确的一边，以身为堂堂正正的中国人为荣，铭记抗战苦难与先烈牺牲。本站只欢迎可爱、健康、积极的猫猫虫咖波内容，不欢迎任何伤害国家和民族感情的杂音。</p><p>如果您是表情包作者并希望删除或添加您的作品，请通过下方按钮联系我们。当前页面就是完整公告与站务页。</p></div><div class="footer-section"><h3><i class="fas fa-upload"></i> 投稿表情包</h3><p>欢迎投稿新的猫猫虫咖波表情包！请确保表情包内容健康，不包含龙图等不良内容。</p><p>投稿规则：先注册并登录个人中心；在“上传作品”里填写作品名称、公开路径和说明；上传图片或视频；提交后等待审核，通过后才会公开显示。</p><p>建议优先上传命名清晰、分类明确、内容完整的资源，这样审核会更顺畅。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn" href="/profile" data-link>前往个人中心投稿</a></div></div><div class="footer-section"><h3><i class="fas fa-shield-heart"></i> 侵权删除</h3><p>如果您发现任何侵权内容，或希望删除某一个表情包，请通过QQ联系我们。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn qq-contact-btn" href="https://qm.qq.com/q/AKPiThhsQg" target="_blank" rel="noreferrer">通过QQ联系删除</a></div><p>点击上方按钮将跳转到QQ聊天页面，请直接发送表情包链接或说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 · 本网站仅为个人收藏用途 · 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
 }
 
 export function imageModal() {
@@ -832,6 +973,8 @@ export function mediaHtml(url, alt, video) {
 }
 
 export function folderCard(folder) {
+  const mediaLabel = folder.coverMediaKind === 'video' ? '视频封面' : '图片分类';
+  const updatedValue = folder.updatedAt || folder.publishedAt;
   return `
     <article class="category-card">
       <a href="/${encodeURIComponent(folder.slug)}" data-link class="category-card-link">
@@ -839,12 +982,17 @@ export function folderCard(folder) {
           ${folder.coverUrl ? mediaHtml(folder.coverUrl, folder.name, folder.coverMediaKind === 'video') : '<div class="category-preview-empty">暂无封面</div>'}
         </div>
         <div class="category-info">
+          <div class="category-badges">
+            <span class="category-kind-badge">${escape(mediaLabel)}</span>
+            ${updatedValue ? `<span class="category-updated">最近更新：${formatDate(updatedValue, true).replace('更新', '')}</span>` : ''}
+          </div>
           <h3>${escape(folder.name)}</h3>
           <p>${escape(folder.description || '猫猫虫咖波表情包合集')}</p>
           <div class="category-meta">
             <span><i class="fas fa-images"></i> ${Number(folder.count) || 0} 项内容</span>
             <span><i class="fas fa-user"></i> ${escape(folder.ownerName || '匿名用户')}</span>
           </div>
+          <span class="category-open-hint">查看 <i class="fas fa-arrow-right"></i></span>
         </div>
       </a>
     </article>
@@ -885,6 +1033,22 @@ export function homeSearchSummary(total, shown) {
   return `<p class="search-summary" id="search-summary">搜索“${escape(state.searchDraft || state.searchQuery)}”找到 <strong>${shown}</strong> 个分类，共 ${total} 个分类。</p>`;
 }
 
+export function homeEmptyState() {
+  if (!state.searchQuery) return '<div class="empty-state">暂无可展示的分类</div>';
+  return `
+    <div class="empty-state home-search-empty">
+      <span class="notice-badge">搜索结果</span>
+      <h3>没有找到匹配分类</h3>
+      <p>当前搜索词：<strong>${escape(state.searchDraft || state.searchQuery)}</strong></p>
+      <div class="home-empty-actions">
+        <button class="search-clear-btn" type="button" data-clear-search>清空搜索</button>
+        <button class="search-clear-btn" type="button" data-clear-search>查看全部分类</button>
+        <a class="search-submit-btn home-empty-tool-link" href="/tools/list" data-link>去工具列表</a>
+      </div>
+    </div>
+  `;
+}
+
 export function getHomeRecommendation() {
   const folders = [...(state.bootstrap?.folders || [])].filter(folder => folder?.slug);
   if (!folders.length || !HOME_RECOMMEND_TOOLS.length) return null;
@@ -905,11 +1069,7 @@ export function isHomeRecommendationSnoozedToday() {
 }
 
 export function todayKey() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return dateKey();
 }
 
 export function pickStable(items, seed) {
@@ -938,6 +1098,10 @@ export function sortedAssets() {
   return assets.sort((a, b) => state.categorySortBy === 'name-asc' ? collator.compare(a.original_name, b.original_name) : collator.compare(b.original_name, a.original_name));
 }
 
+export function isFolderDownloadLocked(folder = state.folderDetail?.folder) {
+  return folder?.name === '\u86e4\u87c6\u6ce2' || folder?.slug === 'hamabo';
+}
+
 export function lockPreviewScroll() {
   state.previewScrollY = window.scrollY || window.pageYOffset || 0;
   document.body.style.position = 'fixed';
@@ -949,6 +1113,7 @@ export function lockPreviewScroll() {
 
 export function unlockPreviewScroll() {
   const y = Number(state.previewScrollY || 0);
+  document.body.classList.remove('preview-open');
   document.body.style.position = '';
   document.body.style.top = '';
   document.body.style.left = '';
@@ -967,29 +1132,65 @@ export function getAssetShareUrl(asset) {
 }
 
 export const openPreview = function (index) {
-  const asset = sortedAssets()[index];
+  const assets = sortedAssets();
+  const asset = assets[index];
   if (!asset) return;
   const modal = document.getElementById('image-modal');
   const body = document.getElementById('modal-body');
-  const frogLocked = state.folderDetail?.folder?.name === '\u86e4\u87c6\u6ce2';
+  if (!modal || !body) return;
+  document.body.classList.add('preview-open');
+  const folder = state.folderDetail?.folder || {};
+  const frogLocked = isFolderDownloadLocked(folder);
   const shareUrl = getAssetShareUrl(asset);
   const downloadAction = frogLocked
-    ? ''
+    ? '<button class="modal-btn disabled" type="button" disabled><i class="fas fa-ban"></i> \u6b64\u5206\u7c7b\u4e0d\u53ef\u4e0b\u8f7d</button>'
     : state.bootstrap?.viewer
       ? `<a class="modal-btn" href="/api/download/${encodeURIComponent(asset.id)}"><i class="fas fa-download"></i> \u4e0b\u8f7d\u539f\u6587\u4ef6</a>`
-      : `<button class="modal-btn disabled" type="button" disabled title="\u8bf7\u5148\u767b\u5f55"><i class="fas fa-lock"></i> \u767b\u5f55\u540e\u624d\u80fd\u4e0b\u8f7d</button>`;
+      : '<button class="modal-btn" type="button" data-login-download><i class="fas fa-lock"></i> \u767b\u5f55\u540e\u4e0b\u8f7d</button>';
   const loginHint = frogLocked || state.bootstrap?.viewer
     ? ''
     : `<p class="small">\u8d44\u6e90\u4e0b\u8f7d\u73b0\u5728\u9700\u8981\u5148<a href="/dashboard" data-link>\u767b\u5f55\u540e\u53f0</a>\u3002</p>`;
-  body.innerHTML = `${asset.media_kind === 'video' ? `<video src="${asset.url}" controls autoplay playsinline></video>` : `<img id="modal-image" src="${asset.url}" alt="${attr(asset.original_name)}">`}<div class="modal-info"><h3 id="modal-title">\u8d44\u6e90\u9884\u89c8</h3><p>\u5206\u7c7b\uff1a<span id="modal-category">${escape(state.folderDetail.folder.name)}</span></p><p>\u6587\u4ef6\u540d\uff1a<span id="modal-filename">${escape(asset.original_name)}</span></p>${loginHint}<div class="modal-actions">${downloadAction}<button class="modal-btn" type="button" id="modal-copy-btn"><i class="fas fa-link"></i> \u590d\u5236\u94fe\u63a5</button></div></div>`;
+  body.innerHTML = `
+    <div class="modal-preview-stage">
+      <button class="preview-nav preview-prev" type="button" data-preview-prev ${index <= 0 ? 'disabled' : ''} aria-label="\u4e0a\u4e00\u5f20"><i class="fas fa-chevron-left"></i></button>
+      <div class="modal-media-wrap">
+        ${asset.media_kind === 'video' ? `<video src="${asset.url}" controls playsinline></video>` : `<img id="modal-image" src="${asset.url}" alt="${attr(asset.original_name)}">`}
+      </div>
+      <button class="preview-nav preview-next" type="button" data-preview-next ${index >= assets.length - 1 ? 'disabled' : ''} aria-label="\u4e0b\u4e00\u5f20"><i class="fas fa-chevron-right"></i></button>
+    </div>
+    <div class="modal-info">
+      <div class="modal-info-head">
+        <div>
+          <span class="asset-position">${index + 1} / ${assets.length}</span>
+          <h3 id="modal-title">\u8d44\u6e90\u9884\u89c8</h3>
+        </div>
+        <span class="asset-type-badge">${asset.media_kind === 'video' ? '\u89c6\u9891' : '\u56fe\u7247'}</span>
+      </div>
+      <p>\u5206\u7c7b\uff1a<span id="modal-category">${escape(folder.name || '')}</span></p>
+      <p>\u6587\u4ef6\u540d\uff1a<span id="modal-filename">${escape(asset.original_name)}</span></p>
+      ${loginHint}
+      <div class="modal-actions">${downloadAction}<button class="modal-btn" type="button" id="modal-copy-btn"><i class="fas fa-link"></i> \u590d\u5236\u94fe\u63a5</button></div>
+    </div>`;
   modal.classList.remove('hidden');
   if (!state.previewOpen) {
     lockPreviewScroll();
     history.pushState({ preview: true }, '', location.href);
   }
   state.previewOpen = true;
+  state.previewIndex = index;
   document.getElementById('modal-copy-btn')?.addEventListener('click', () => copyText(shareUrl).then(() => toast('\u94fe\u63a5\u5df2\u590d\u5236')), { once: true });
 };
+
+export function previewPrevious() {
+  if (!state.previewOpen || state.previewIndex <= 0) return;
+  openPreview(state.previewIndex - 1);
+}
+
+export function previewNext() {
+  const assets = sortedAssets();
+  if (!state.previewOpen || state.previewIndex >= assets.length - 1) return;
+  openPreview(state.previewIndex + 1);
+}
 
 export const closeModal = function (fromPopState = false) {
   if (!fromPopState && state.previewOpen) {
@@ -997,10 +1198,12 @@ export const closeModal = function (fromPopState = false) {
     return;
   }
   document.getElementById('image-modal')?.classList.add('hidden');
+  document.body.classList.remove('preview-open');
   const body = document.getElementById('modal-body');
   if (body) body.innerHTML = '';
   if (state.previewOpen) {
     state.previewOpen = false;
+    state.previewIndex = -1;
     unlockPreviewScroll();
   }
 };
@@ -1024,6 +1227,7 @@ export function scheduleHomeIntroAutoHide() {
   if (state.homeIntroDismissed || decodeURIComponent(location.pathname) !== '/') return;
   homeIntroTimer = setTimeout(() => {
     if (decodeURIComponent(location.pathname) !== '/') return;
+    setKeyUntil(HOME_INTRO_DISMISSED_UNTIL_KEY, 1);
     state.homeIntroDismissed = true;
     state.homeRestoreHintDismissed = false;
     renderHomePage();
@@ -1041,6 +1245,9 @@ export function scheduleHomeRestoreHintAutoHide(showRestoreHint) {
 }
 
 export function restoreHomePanels() {
+  clearKeyUntil(HOME_INTRO_DISMISSED_UNTIL_KEY);
+  clearKeyUntil(HOME_NOTICE_DISMISSED_UNTIL_KEY);
+  clearKeyUntil(HOME_TOOLS_DISMISSED_UNTIL_KEY);
   state.homeIntroDismissed = false;
   state.homeNoticeDismissed = false;
   state.homeToolsDismissed = false;
@@ -1050,42 +1257,49 @@ export function restoreHomePanels() {
 }
 
 export function dismissHomeNotice() {
+  setKeyUntil(HOME_NOTICE_DISMISSED_UNTIL_KEY, HOME_PANEL_DISMISS_DAYS);
   state.homeNoticeDismissed = true;
   state.homeRestoreHintDismissed = false;
   renderHomePage();
 }
 
 export function dismissHomeTools() {
+  setKeyUntil(HOME_TOOLS_DISMISSED_UNTIL_KEY, HOME_PANEL_DISMISS_DAYS);
   state.homeToolsDismissed = true;
   state.homeRestoreHintDismissed = false;
   renderHomePage();
 }
 
 export function showHomeNotice() {
+  clearKeyUntil(HOME_NOTICE_DISMISSED_UNTIL_KEY);
   state.homeNoticeDismissed = false;
   state.homeRestoreHintDismissed = true;
   renderHomePage();
 }
 
 export function showHomeTools() {
+  clearKeyUntil(HOME_TOOLS_DISMISSED_UNTIL_KEY);
   state.homeToolsDismissed = false;
   state.homeRestoreHintDismissed = true;
   renderHomePage();
 }
 
 export function dismissHomeRecommendation() {
+  localStorage.setItem(HOME_RECOMMEND_SNOOZE_KEY, todayKey());
   state.homeRecommendDismissed = true;
   renderHomePage();
 }
 
 export function dismissHomeRecommendationsForToday() {
   localStorage.setItem(HOME_RECOMMEND_SNOOZE_KEY, todayKey());
+  state.homeRecommendDismissed = true;
   renderHomePage();
 }
 
 export const renderHomePage = function () {
   clearHomeIntroTimer();
   clearHomeRestoreHintTimer();
+  syncHomePanelPreferences();
   document.title = '\u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93';
   const site = state.bootstrap?.site || {};
   const notice = state.bootstrap?.announcements?.[0];
@@ -1100,35 +1314,32 @@ export const renderHomePage = function () {
   app.innerHTML = `
     ${header({ title: site.name || '\u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93', subtitle: '\u6536\u96c6\u5e76\u5206\u4eab\u53ef\u7231\u7684\u732b\u732b\u866b\u5496\u6ce2\u56fe\u7247\u3001\u8868\u60c5\u5305\u548c\u89c6\u9891\u5185\u5bb9\uff01', stats: `<span>${site.totalCategories || 0}</span> \u4e2a\u5206\u7c7b \u00b7 <span>${site.totalAssets || 0}</span> \u9879\u5185\u5bb9` })}
     <main class="container">
-      ${showIntro ? '<section class="intro home-intro-panel"><p>\u672c\u7f51\u7ad9\u4f1a\u6839\u636e\u6587\u4ef6\u5939\u540d\u79f0\u81ea\u52a8\u5206\u7c7b\uff0c\u6bcf\u4e2a\u6587\u4ef6\u5939\u91cc\u7684\u56fe\u7247\u6216\u89c6\u9891\u90fd\u4f1a\u6536\u8fdb\u5bf9\u5e94\u5206\u7c7b\u3002\u70b9\u51fb\u5206\u7c7b\u5361\u7247\u540e\uff0c\u53ef\u4ee5\u7ee7\u7eed\u9884\u89c8\u548c\u4e0b\u8f7d\u5185\u5bb9\uff08\u86e4\u87c6\u6ce2\u5206\u7c7b\u9664\u5916\uff09\u3002</p></section>' : ''}
-      ${showNotice ? `<section class="notice-board" id="site-notice-board" data-mode="compact"><div class="notice-board-head"><div><span class="notice-kicker">${escape(state.bootstrap?.siteNotice?.title || '\u7ad9\u5185\u516c\u544a')}</span><h2>\u6700\u65b0\u7ad9\u5185\u516c\u544a</h2><p>${escape(state.bootstrap?.siteNotice?.content || '\u6b22\u8fce\u6765\u5230\u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93\u540e\u53f0\u7248\u3002\u8fd9\u91cc\u7684\u5185\u5bb9\u5c06\u7531\u5ba1\u6838\u901a\u8fc7\u540e\u7684\u6587\u4ef6\u5939\u81ea\u52a8\u53d1\u5e03\u3002')}</p></div><div class="section-head-actions"><button class="copy-btn home-notice-close" type="button" data-close-home-notice="1">\u5173\u95ed</button><a class="notice-board-link" href="/site-info" data-link>\u67e5\u770b\u5b8c\u6574\u516c\u544a</a></div></div><div class="notice-entry-list compact"><article class="notice-entry"><div class="notice-entry-head"><span class="notice-badge">${notice ? formatDate(notice.updated_at, true) : '\u6700\u65b0\u516c\u544a'}</span><h3>${escape(notice?.title || '\u6b22\u8fce\u6765\u5230\u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93\u540e\u53f0\u7248\u3002')}</h3></div><p class="notice-summary">${escape(notice?.content || state.bootstrap?.siteNotice?.content || '')}</p></article></div></section>` : ''}
       ${homeQuickEntries(showNotice, showTools)}
-      ${showTools ? homeToolsCard() : ''}
       <section class="controls">
         <form id="search-form" class="search-box" role="search">
           <i class="fas fa-search"></i>
-          <input id="search-input" name="keyword" type="text" placeholder="\u641c\u7d22\u5206\u7c7b..." value="${attr(state.searchDraft)}">
+          <input id="search-input" name="keyword" type="text" placeholder="搜索分类、发布者、路径..." value="${attr(state.searchDraft)}" aria-describedby="home-search-hint">
           <div class="search-actions">
             <button class="search-submit-btn" type="submit" data-home-search-submit>\u786e\u8ba4</button>
             <button class="search-clear-btn" type="button" data-clear-search ${state.searchDraft || state.searchQuery ? '' : 'disabled'}>\u53d6\u6d88</button>
           </div>
+          <p class="home-search-hint" id="home-search-hint">支持分类名、说明、路径、发布者</p>
         </form>
         <div class="sort-options">
           <label for="sort-select">\u6392\u5e8f\u65b9\u5f0f</label>
           <select id="sort-select" name="sort">
-            <option value="name-asc" ${state.sortBy === 'name-asc' ? 'selected' : ''}>\u540d\u79f0 (A-Z)</option>
-            <option value="name-desc" ${state.sortBy === 'name-desc' ? 'selected' : ''}>\u540d\u79f0 (Z-A)</option>
-            <option value="count-asc" ${state.sortBy === 'count-asc' ? 'selected' : ''}>\u6570\u91cf (\u4ece\u5c11\u5230\u591a)</option>
-            <option value="count-desc" ${state.sortBy === 'count-desc' ? 'selected' : ''}>\u6570\u91cf (\u4ece\u591a\u5230\u5c11)</option>
-            <option value="published-asc" ${state.sortBy === 'published-asc' ? 'selected' : ''}>\u53d1\u5e03\u65f6\u95f4 (\u65e9\u5230\u665a)</option>
-            <option value="published-desc" ${state.sortBy === 'published-desc' ? 'selected' : ''}>\u53d1\u5e03\u65f6\u95f4 (\u665a\u5230\u65e9)</option>
-            <option value="updated-asc" ${state.sortBy === 'updated-asc' ? 'selected' : ''}>\u4fee\u6539\u65f6\u95f4 (\u4ece\u65e9\u5230\u665a)</option>
-            <option value="updated-desc" ${state.sortBy === 'updated-desc' ? 'selected' : ''}>\u4fee\u6539\u65f6\u95f4 (\u4ece\u665a\u5230\u65e9)</option>
+            <option value="published-desc" ${state.sortBy === 'published-desc' ? 'selected' : ''}>最新发布</option>
+            <option value="updated-desc" ${state.sortBy === 'updated-desc' ? 'selected' : ''}>最近更新</option>
+            <option value="count-desc" ${state.sortBy === 'count-desc' ? 'selected' : ''}>内容最多</option>
+            <option value="name-asc" ${state.sortBy === 'name-asc' ? 'selected' : ''}>名称 A-Z</option>
           </select>
         </div>
         ${homeSearchSummary(totalFolders, folders.length)}
       </section>
-      <section class="categories" id="home-categories">${folders.length ? folders.map(folderCard).join('') : '<div class="empty-state">\u6682\u65e0\u53ef\u5c55\u793a\u7684\u5206\u7c7b</div>'}</section>
+      <section class="categories" id="home-categories">${folders.length ? folders.map(folderCard).join('') : homeEmptyState()}</section>
+      ${showIntro ? '<section class="intro home-intro-panel"><p>按分类找表情包，点击卡片即可预览内容；完整规则请看 <a href="/site-info" data-link>站务说明</a>。</p></section>' : ''}
+      ${showNotice ? `<section class="notice-board" id="site-notice-board" data-mode="compact"><div class="notice-board-head"><div><span class="notice-kicker">${escape(state.bootstrap?.siteNotice?.title || '\u7ad9\u5185\u516c\u544a')}</span><h2>\u6700\u65b0\u7ad9\u5185\u516c\u544a</h2><p>${escape(state.bootstrap?.siteNotice?.content || '\u6b22\u8fce\u6765\u5230\u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93\u540e\u53f0\u7248\u3002\u8fd9\u91cc\u7684\u5185\u5bb9\u5c06\u7531\u5ba1\u6838\u901a\u8fc7\u540e\u7684\u6587\u4ef6\u5939\u81ea\u52a8\u53d1\u5e03\u3002')}</p></div><div class="section-head-actions"><button class="copy-btn home-notice-close" type="button" data-close-home-notice="1">\u5173\u95ed</button><a class="notice-board-link" href="/site-info" data-link>\u67e5\u770b\u5b8c\u6574\u516c\u544a</a></div></div><div class="notice-entry-list compact"><article class="notice-entry"><div class="notice-entry-head"><span class="notice-badge">${notice ? formatDate(notice.updated_at, true) : '\u6700\u65b0\u516c\u544a'}</span><h3>${escape(notice?.title || '\u6b22\u8fce\u6765\u5230\u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93\u540e\u53f0\u7248\u3002')}</h3></div><p class="notice-summary">${escape(notice?.content || state.bootstrap?.siteNotice?.content || '')}</p></article></div></section>` : ''}
+      ${showTools ? homeToolsCard() : ''}
     </main>
     ${showRecommendation ? homeRecommendationModal(recommendation) : ''}
     ${showRestoreHint ? '<button class="home-restore-hint" type="button" data-home-restore="1">\u70b9\u51fb\u9876\u90e8\u6807\u9898\u680f\u53ef\u91cd\u65b0\u5c55\u5f00\u8bf4\u660e\u3001\u516c\u544a\u548c\u5de5\u5177\u5165\u53e3</button>' : ''}
@@ -1136,6 +1347,7 @@ export const renderHomePage = function () {
     ${imageModal()}
   `;
   document.querySelector('header .header-content')?.setAttribute('data-home-restore', '1');
+  if (showRecommendation) localStorage.setItem(HOME_RECOMMEND_SNOOZE_KEY, todayKey());
   bindHomeSearchControls();
   scheduleHomeIntroAutoHide();
   scheduleHomeRestoreHintAutoHide(showRestoreHint);
@@ -1187,7 +1399,7 @@ export function refreshHomeSearchResults() {
   const totalFolders = state.bootstrap?.folders?.length || 0;
   categories.innerHTML = folders.length
     ? folders.map(folderCard).join('')
-    : '<div class="empty-state">没有找到匹配的分类</div>';
+    : homeEmptyState();
 
   const input = document.getElementById('search-input');
   if (input && input.value !== state.searchDraft) input.value = state.searchDraft;
@@ -1275,7 +1487,7 @@ export function homeRecommendationModal(recommendation) {
       </div>
       <label class="home-recommend-snooze">
         <input type="checkbox" data-home-recommend-snooze>
-        <span>今日内不再显示</span>
+        <span>今天不再推荐</span>
       </label>
       </div>
     </section>
@@ -1286,59 +1498,92 @@ export function toolListCard({ badge, title, summary, href, actionText, dataLink
   return `<article class="admin-item-card tool-list-card"><div class="folder-status"><span class="notice-badge">${escape(badge)}</span></div><h4>${escape(title)}</h4><p>${escape(summary)}</p><div class="review-button-row admin-card-actions"><a class="footer-btn footer-link-btn" href="${href}"${dataLink ? ' data-link' : ''}>${escape(actionText)}</a></div></article>`;
 }
 
-export function renderFolderPage() {
+export function renderFolderPage({ preserveScroll = false } = {}) {
+  const scrollY = window.scrollY || window.pageYOffset || 0;
   const folder = state.folderDetail.folder;
   const assets = sortedAssets();
   const comments = state.folderDetail.comments || [];
-  const frogLocked = folder.name === '\u86e4\u87c6\u6ce2' || folder.slug === 'hamabo';
-  const pageShareUrl = location.href;
+  const frogLocked = isFolderDownloadLocked(folder);
+  const pageShareUrlObject = new URL(location.href);
+  pageShareUrlObject.hash = '';
+  const pageShareUrl = pageShareUrlObject.toString();
   const qqShareUrl = `https://connect.qq.com/widget/shareqq/index.html?url=${encodeURIComponent(pageShareUrl)}&title=${encodeURIComponent(folder.name)}`;
+  const commentCount = Number(folder.commentCount || comments.length || 0);
   document.title = `\u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93 - ${folder.name}`;
   app.innerHTML = `
     ${header({ title: `<a href="/" class="site-title-link" data-link data-home-link aria-label="\u8fd4\u56de\u4e3b\u9875"><i class="fas fa-cat"></i> \u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93</a>`, subtitle: `${folder.name} - \u8d44\u6e90\u5408\u96c6`, stats: `<span>1</span> \u4e2a\u5206\u7c7b \u00b7 <span>${assets.length}</span> \u9879\u5185\u5bb9`, htmlTitle: true })}
-    <main class="container">
+    <main class="container detail-page-container">
       <section class="category-detail">
-        <div class="detail-header">
-          <h2>${escape(folder.name)}</h2>
-          <div class="profile-folder-meta">
-            <span>发布者：${folder.ownerPublicId ? `<a href="/profile/${folder.ownerPublicId}" data-link>${escape(folder.ownerName || '匿名用户')}</a>` : escape(folder.ownerName || '匿名用户')}</span>
-            <div class="detail-social-actions">
-              ${renderFolderFollowButton(folder)}
-              <button class="copy-btn detail-social-btn detail-favorite-btn" type="button" data-favorite-folder="${folder.id}" data-favorited="${folder.isFavorited ? 'true' : 'false'}">${folder.isFavorited ? '已收藏' : '收藏'}</button>
-              <button class="copy-btn detail-social-btn" type="button" data-like-folder="${folder.id}" data-liked="${folder.isLiked ? 'true' : 'false'}"><i class="${folder.isLiked ? 'fas' : 'far'} fa-heart"></i> ${folder.isLiked ? '已点赞' : '点赞'} ${Number(folder.likeCount || 0)}</button>
-              <button class="copy-btn detail-social-btn" type="button" data-scroll-comments><i class="far fa-comment"></i> 评论 ${Number(folder.commentCount || comments.length || 0)}</button>
+        <div class="detail-hero">
+          <div class="detail-title-row">
+            <div>
+              <span class="notice-badge">分类详情</span>
+              <h2>${escape(folder.name)}</h2>
             </div>
-          </div>
-          <div class="detail-header-row">
             <p class="detail-info">\u5171 <span>${assets.length}</span> \u9879\u5185\u5bb9</p>
-            <div class="detail-header-actions">
-              <button class="modal-share-btn detail-share-toggle" type="button" data-toggle-page-share><i class="fas fa-share-nodes"></i> \u5206\u4eab\u672c\u9875</button>
-              <div class="modal-share-grid detail-share-grid hidden" id="page-share-panel">
-                <a class="modal-share-btn" href="${qqShareUrl}" target="_blank" rel="noreferrer"><i class="fab fa-qq"></i> QQ</a>
-                <button class="modal-share-btn" type="button" data-copy-url="${attr(pageShareUrl)}"><i class="fas fa-comment"></i> \u5fae\u4fe1</button>
-                <button class="modal-share-btn" type="button" data-copy-url="${attr(pageShareUrl)}"><i class="fas fa-link"></i> \u590d\u5236\u94fe\u63a5</button>
-                <button class="modal-share-btn" type="button" data-share-page><i class="fas fa-share-nodes"></i> \u66f4\u591a\u5206\u4eab</button>
-              </div>
-              <div class="sort-options">
-                <label for="category-sort-select">\u6392\u5e8f\u65b9\u5f0f\uff1a</label>
-                <select id="category-sort-select">
-                  <option value="name-asc" ${state.categorySortBy === 'name-asc' ? 'selected' : ''}>\u6587\u4ef6\u540d (A-Z)</option>
-                  <option value="name-desc" ${state.categorySortBy === 'name-desc' ? 'selected' : ''}>\u6587\u4ef6\u540d (Z-A)</option>
-                </select>
-              </div>
+          </div>
+          <div class="detail-owner-row">
+            <span class="detail-owner-label">发布者</span>
+            ${folder.ownerPublicId ? `<a class="detail-owner-link" href="/profile/${folder.ownerPublicId}" data-link>${escape(folder.ownerName || '匿名用户')}</a>` : `<span class="detail-owner-link">${escape(folder.ownerName || '匿名用户')}</span>`}
+            ${renderFolderFollowButton(folder)}
+          </div>
+          <div class="detail-action-row">
+            <button class="copy-btn detail-social-btn detail-favorite-btn" type="button" data-favorite-folder="${folder.id}" data-favorited="${folder.isFavorited ? 'true' : 'false'}"><i class="${folder.isFavorited ? 'fas' : 'far'} fa-star"></i> ${folder.isFavorited ? '已收藏' : '收藏'}</button>
+            <button class="copy-btn detail-social-btn" type="button" data-like-folder="${folder.id}" data-liked="${folder.isLiked ? 'true' : 'false'}"><i class="${folder.isLiked ? 'fas' : 'far'} fa-heart"></i> ${folder.isLiked ? '已点赞' : '点赞'} ${Number(folder.likeCount || 0)}</button>
+            <button class="copy-btn detail-social-btn" type="button" data-scroll-comments><i class="far fa-comment"></i> 评论 ${commentCount}</button>
+            <div class="detail-share-wrap">
+              <button class="modal-share-btn detail-share-toggle" type="button" data-toggle-page-share><i class="fas fa-share-nodes"></i> \u5206\u4eab</button>
+              ${renderPageSharePanel(pageShareUrl, qqShareUrl)}
             </div>
           </div>
-          <p class="detail-description">${escape(folder.description || `${folder.name} \u8d44\u6e90\u5408\u96c6`)}</p>
+          <div class="detail-meta-row">
+            <p class="detail-description">${escape(folder.description || `${folder.name} \u8d44\u6e90\u5408\u96c6`)}</p>
+            <div class="sort-options detail-sort-options">
+              <label for="category-sort-select">\u6392\u5e8f\u65b9\u5f0f</label>
+              <select id="category-sort-select">
+                <option value="name-asc" ${state.categorySortBy === 'name-asc' ? 'selected' : ''}>\u6587\u4ef6\u540d A-Z</option>
+                <option value="name-desc" ${state.categorySortBy === 'name-desc' ? 'selected' : ''}>\u6587\u4ef6\u540d Z-A</option>
+              </select>
+            </div>
+          </div>
         </div>
         ${frogLocked ? '<div class="warning" id="frog-warning"><i class="fas fa-exclamation-triangle"></i> \u6b64\u5206\u7c7b\u4ec5\u652f\u6301\u9884\u89c8\uff0c\u4e0d\u53ef\u4e0b\u8f7d\u3002</div>' : ''}
         <div class="images-grid">${assets.map((asset, index) => assetCard(asset, index)).join('')}</div>
         ${renderFolderComments(folder, comments)}
       </section>
     </main>
+    ${renderMobileDetailBar(folder, commentCount)}
     ${compactFooter()}
     ${imageModal()}
   `;
-  window.scrollTo(0, 0);
+  if (preserveScroll) {
+    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+  } else {
+    window.scrollTo(0, 0);
+  }
+}
+
+export function renderPageSharePanel(pageShareUrl, qqShareUrl) {
+  return `
+    <div class="modal-share-grid detail-share-grid hidden" id="page-share-panel">
+      <a class="modal-share-btn" href="${qqShareUrl}" target="_blank" rel="noreferrer"><i class="fab fa-qq"></i> QQ</a>
+      <button class="modal-share-btn" type="button" data-copy-url="${attr(pageShareUrl)}"><i class="fas fa-comment"></i> \u590d\u5236\u7ed9\u5fae\u4fe1</button>
+      <button class="modal-share-btn" type="button" data-copy-url="${attr(pageShareUrl)}"><i class="fas fa-link"></i> \u590d\u5236\u94fe\u63a5</button>
+      <button class="modal-share-btn" type="button" data-share-page><i class="fas fa-share-nodes"></i> \u7cfb\u7edf\u5206\u4eab</button>
+    </div>
+  `;
+}
+
+export function renderMobileDetailBar(folder, commentCount) {
+  return `
+    <nav class="detail-mobile-bar" aria-label="\u5206\u7c7b\u5feb\u6377\u64cd\u4f5c">
+      <button type="button" data-favorite-folder="${folder.id}" data-favorited="${folder.isFavorited ? 'true' : 'false'}"><i class="${folder.isFavorited ? 'fas' : 'far'} fa-star"></i><span>${folder.isFavorited ? '已收藏' : '收藏'}</span></button>
+      <button type="button" data-like-folder="${folder.id}" data-liked="${folder.isLiked ? 'true' : 'false'}"><i class="${folder.isLiked ? 'fas' : 'far'} fa-heart"></i><span>${Number(folder.likeCount || 0)}</span></button>
+      <button type="button" data-scroll-comments><i class="far fa-comment"></i><span>${commentCount}</span></button>
+      <button type="button" data-toggle-page-share><i class="fas fa-share-nodes"></i><span>\u5206\u4eab</span></button>
+      <button type="button" data-scroll-top><i class="fas fa-arrow-up"></i><span>\u9876\u90e8</span></button>
+    </nav>
+  `;
 }
 
 export function renderFolderFollowButton(folder) {
@@ -1348,35 +1593,45 @@ export function renderFolderFollowButton(folder) {
 
 export function renderFolderComments(folder, comments) {
   const viewer = state.bootstrap?.viewer;
+  const commentCount = Number(folder.commentCount || comments.length || 0);
+  const expanded = state.commentsExpanded || comments.length <= 3;
+  const visibleComments = expanded ? comments : comments.slice(0, 3);
   return `
     <section class="folder-comments" id="folder-comments">
       <div class="folder-comments-head">
         <div>
           <span class="site-info-kicker">评论</span>
-          <h3>评论 ${Number(folder.commentCount || comments.length || 0)}</h3>
+          <h3>评论 ${commentCount}</h3>
+        </div>
+        <div class="folder-comments-actions">
+          <button class="copy-btn" type="button" data-scroll-comment-form>\u5199\u8bc4\u8bba</button>
+          ${comments.length > 3 ? `<button class="copy-btn" type="button" data-toggle-comments>${expanded ? '\u6536\u8d77' : '\u67e5\u770b\u5168\u90e8'}</button>` : ''}
         </div>
       </div>
       ${viewer ? `
         <form class="folder-comment-form" id="folder-comment-form">
           <label class="field">
             <span>发表评论</span>
-            <textarea name="content" maxlength="100" placeholder="写点什么，最多 100 字" required></textarea>
+            <textarea name="content" maxlength="100" placeholder="写点什么，最多 100 字" data-comment-input required></textarea>
           </label>
           <div class="review-button-row">
+            <span class="comment-counter" data-comment-counter>还可输入 100 字</span>
             <button class="footer-btn footer-btn-small" type="submit">发表评论</button>
           </div>
         </form>
-      ` : '<p class="small folder-comments-login">登录后可以发表评论。</p>'}
+      ` : '<div class="folder-comments-login"><p class="small">登录后可以发表评论。</p><a class="footer-btn footer-link-btn" href="/profile" data-link>\u767b\u5f55\u540e\u8bc4\u8bba</a></div>'}
       <div class="folder-comment-list">
-        ${comments.length ? comments.map(folderCommentCard).join('') : '<p class="small">还没有评论。</p>'}
+        ${visibleComments.length ? visibleComments.map(folderCommentCard).join('') : '<p class="small">还没有评论。</p>'}
       </div>
+      ${comments.length > 3 && !expanded ? '<button class="copy-btn folder-comments-more" type="button" data-toggle-comments>\u67e5\u770b\u5168\u90e8\u8bc4\u8bba</button>' : ''}
     </section>
   `;
 }
 
 export function folderCommentCard(comment) {
+  const highlighted = state.recentCommentId && String(comment.id) === String(state.recentCommentId);
   return `
-    <article class="folder-comment-card">
+    <article class="folder-comment-card${highlighted ? ' is-new-comment' : ''}" data-comment-id="${attr(comment.id)}">
       <div class="folder-comment-head">
         <div class="folder-comment-author">
           ${comment.authorPublicId ? `<a href="/profile/${comment.authorPublicId}" data-link>${escape(comment.authorName || '用户')}</a>` : escape(comment.authorName || '用户')}
@@ -1391,7 +1646,34 @@ export function folderCommentCard(comment) {
 
 export function assetCard(asset, index) {
   const video = asset.media_kind === 'video';
-  return `<article class="image-card"><button type="button" class="image-card-trigger" data-preview="${index}">${mediaHtml(asset.url, asset.original_name, video)}</button></article>`;
+  const assets = sortedAssets();
+  const locked = isFolderDownloadLocked();
+  const downloadControl = locked
+    ? '<button class="image-tool-btn is-disabled" type="button" disabled title="\u6b64\u5206\u7c7b\u4e0d\u53ef\u4e0b\u8f7d"><i class="fas fa-ban"></i></button>'
+    : state.bootstrap?.viewer
+      ? `<a class="image-tool-btn" href="/api/download/${encodeURIComponent(asset.id)}" title="\u4e0b\u8f7d"><i class="fas fa-download"></i></a>`
+      : '<button class="image-tool-btn" type="button" data-login-download title="\u767b\u5f55\u540e\u4e0b\u8f7d"><i class="fas fa-lock"></i></button>';
+  return `
+    <article class="image-card">
+      <div class="image-card-media">
+        <button type="button" class="image-card-trigger" data-preview="${index}" aria-label="\u9884\u89c8 ${attr(asset.original_name)}">
+          ${mediaHtml(asset.url, asset.original_name, video)}
+          ${video ? '<span class="image-play-badge"><i class="fas fa-play"></i></span>' : ''}
+        </button>
+      </div>
+      <div class="image-card-body">
+        <div class="image-card-meta">
+          <span class="asset-type-badge">${video ? '\u89c6\u9891' : '\u56fe\u7247'}</span>
+          <span class="asset-position">${index + 1} / ${assets.length}</span>
+        </div>
+        <p class="image-title">${escape(asset.original_name)}</p>
+        <div class="image-card-tools">
+          <button class="image-tool-btn" type="button" data-preview="${index}" title="\u9884\u89c8"><i class="fas fa-eye"></i></button>
+          <button class="image-tool-btn" type="button" data-copy-url="${attr(getAssetShareUrl(asset))}" title="\u590d\u5236\u94fe\u63a5"><i class="fas fa-link"></i></button>
+          ${downloadControl}
+        </div>
+      </div>
+    </article>`;
 }
 
 export function renderFolderAssetGallery(folder, { editable = false, manageMode = 'owner' } = {}) {
