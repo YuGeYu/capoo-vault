@@ -1,0 +1,92 @@
+/* 工具卡片网格 */
+.beta-tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.beta-tool-card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    transition: all 0.3s;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.beta-tool-card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-4px);
+}
+
+.beta-tool-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.75rem;
+    flex-shrink: 0;
+}
+
+.beta-tool-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.beta-tool-badge {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    background: var(--accent-color);
+    color: white;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.beta-tool-info h4 {
+    font-size: 1.125rem;
+    color: var(--text-main);
+    margin: 0 0 0.5rem 0;
+}
+
+.beta-tool-info p {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
+
+body.dark-mode .beta-tool-card {
+    background: var(--dark-surface);
+    box-shadow: var(--dark-shadow);
+}
+
+body.dark-mode .beta-tool-card:hover {
+    box-shadow: var(--dark-shadow-hover);
+}
+
+@media (max-width: 768px) {
+    .beta-tools-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .beta-tool-card {
+        padding: 1rem;
+    }
+
+    .beta-tool-icon {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+    }
+}

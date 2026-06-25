@@ -13,6 +13,7 @@ export const state = {
   profileActiveTab: 'works',
   theme: localStorage.getItem('theme') || 'light',
   homeLayout: localStorage.getItem('mmc_home_layout') || 'classic',
+  betaChannel: 'recommend',
   searchQuery: '',
   searchDraft: '',
   sortBy: 'published-desc',

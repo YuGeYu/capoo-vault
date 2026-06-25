@@ -13,7 +13,7 @@ const LINK_MATCH_RECOMMEND_UNTIL = '2026-06-01';
 const LINK_MATCH_TOOL_HREF = '/tools/link-match';
 const SITE_META_NAME = '猫猫虫咖波表情包仓库';
 const DEFAULT_META_DESCRIPTION = '猫猫虫咖波表情包仓库，按分类浏览和搜索图片、表情包与视频内容，支持预览与下载。';
-const HOME_RECOMMEND_TOOLS = [
+export const HOME_RECOMMEND_TOOLS = [
   { badge: 'AI 工具', title: 'AI 聊天', summary: '问站内问题、看图片、想表情包名字。', href: '/tools/ai-chat', icon: 'fa-comments' },
   { badge: 'AI 工具', title: 'AI 对话 API 申请', summary: '申请 API Key，用本站接口调用 AI 对话服务。', href: '/tools/ai-api', icon: 'fa-key' },
   { badge: 'AI 工具', title: 'AI 抠图', summary: '上传图片后在浏览器内去背景。', href: '/tools/remove-bg', icon: 'fa-wand-magic-sparkles' },
