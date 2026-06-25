@@ -1,4 +1,4 @@
-﻿import { state, api, toast, copyText, shareCurrentPage, applyTheme, normalize, findAdminFolderById, confirmDangerAction, closeConfirmDialog, getDeleteConfirmationOptions, getReviewConfirmationOptions, getAdminFolderSaveConfirmationOptions, isAdmin, isOwner } from './app-support.js';
+﻿import { state, api, toast, copyText, shareCurrentPage, applyTheme, normalize, findAdminFolderById, confirmDangerAction, closeConfirmDialog, getDeleteConfirmationOptions, getReviewConfirmationOptions, getAdminFolderSaveConfirmationOptions, isAdmin, isOwner, setHomeLayoutPreference } from './app-support.js';
 
 import { renderHomePage, renderSiteInfoPage, renderRemoveBgPage, renderAiChatPage, renderAiApiPage, renderMusicPage, renderInspirationPage, renderLinkMatchPage, renderToolsListPage, renderDashboardPage, renderAuthPage, renderMessagePage, renderFolderPage, renderProfileEntryPage, renderProfilePage, openPreview, previewPrevious, previewNext, closeModal, restoreHomePanels, dismissHomeNotice, dismissHomeTools, showHomeNotice, showHomeTools, dismissHomeRecommendation, dismissHomeRecommendationsForToday, applyHomeSearch } from './app-renderers.js';
 
@@ -117,6 +117,16 @@ export function onClick(event) {
     localStorage.setItem('theme', state.theme);
     applyTheme();
     return;
+  }
+  if (event.target.closest('[data-switch-to-beta]')) {
+    setHomeLayoutPreference('beta');
+    toast('已切换到新版首页');
+    return renderHomePage();
+  }
+  if (event.target.closest('[data-switch-to-classic]')) {
+    setHomeLayoutPreference('classic');
+    toast('已切换到旧版首页');
+    return renderHomePage();
   }
   if (event.target.closest('[data-clear-search]')) return clearSearch();
   if (event.target.closest('[data-profile-tab]')) return onProfileTab(event.target.closest('[data-profile-tab]').dataset.profileTab);

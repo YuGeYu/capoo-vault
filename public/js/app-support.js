@@ -12,6 +12,7 @@ export const state = {
   profile: null,
   profileActiveTab: 'works',
   theme: localStorage.getItem('theme') || 'light',
+  homeLayout: localStorage.getItem('mmc_home_layout') || 'classic',
   searchQuery: '',
   searchDraft: '',
   sortBy: 'published-desc',
@@ -186,6 +187,16 @@ export function getDeleteConfirmationOptions(url) {
     message: '这个操作会立即生效，请确认要继续。',
     confirmText: '确认继续'
   };
+}
+
+export function getHomeLayoutPreference() {
+  return localStorage.getItem('mmc_home_layout') || 'classic';
+}
+
+export function setHomeLayoutPreference(layout) {
+  if (!['classic', 'beta'].includes(layout)) layout = 'classic';
+  localStorage.setItem('mmc_home_layout', layout);
+  state.homeLayout = layout;
 }
 
 export function getReviewConfirmationOptions(action) {
