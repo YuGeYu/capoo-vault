@@ -134,20 +134,85 @@ function syncHomePanelPreferences() {
   state.homeToolsDismissed = isKeyActiveUntil(HOME_TOOLS_DISMISSED_UNTIL_KEY);
 }
 
-async function loadDashboardData() {
-  if (!state.bootstrap?.viewer) return;
-  state.dashboard = await api('/api/dashboard/folders');
-  if (isAdmin()) {
-    state.reviews = await api('/api/admin/reviews');
-    state.existingFolders = await api('/api/admin/folders');
-  }
+const DASHBOARD_LOADERS = {
+  dashboard: () => api('/api/dashboard/folders'),
+  reviews: () => api('/api/admin/reviews'),
+  existingFolders: () => api('/api/admin/folders'),
+  announcements: () => api('/api/admin/announcements'),
+  siteSettings: () => api('/api/admin/site-settings'),
+  users: () => api('/api/admin/users'),
+  redeemCodes: () => api('/api/admin/remove-bg/redeem-codes'),
+  aiApiUsers: () => api('/api/admin/ai-api/users')
+};
+
+const DASHBOARD_PANEL_DATA = {
+  existingFolders: 'existingFolders',
+  announcements: 'announcements',
+  settings: 'siteSettings',
+  users: 'users',
+  redeemCodes: 'redeemCodes',
+  aiApi: 'aiApiUsers'
+};
+
+function dashboardLoadKeys() {
+  if (!state.bootstrap?.viewer) return [];
+  const keys = [];
+  if (!state.dashboard) keys.push('dashboard');
+  if (isAdmin() && !state.reviews) keys.push('reviews');
+  if (isAdmin() && (!state.collapsedPanels.existingFolders || state.adminEditingFolderId) && !state.existingFolders) keys.push('existingFolders');
   if (isOwner()) {
-    state.announcements = await api('/api/admin/announcements');
-    state.siteSettings = await api('/api/admin/site-settings');
-    state.users = await api('/api/admin/users');
-    state.redeemCodes = await api('/api/admin/remove-bg/redeem-codes');
-    state.aiApiUsers = await api('/api/admin/ai-api/users');
+    Object.entries(DASHBOARD_PANEL_DATA).forEach(([panel, key]) => {
+      if (!state.collapsedPanels[panel] && !state[key]) keys.push(key);
+    });
   }
+  return keys;
+}
+
+async function loadDashboardData(keys = dashboardLoadKeys()) {
+  if (!state.bootstrap?.viewer || !keys.length) return;
+  state.dashboardLoadPending ||= {};
+  state.dashboardLoadErrors ||= {};
+  const pendingKeys = keys.filter(key => DASHBOARD_LOADERS[key] && !state.dashboardLoadPending[key]);
+  if (!pendingKeys.length) return;
+  pendingKeys.forEach(key => {
+    state.dashboardLoadPending[key] = true;
+    delete state.dashboardLoadErrors[key];
+  });
+  state.dashboardLoading = true;
+  const results = await Promise.allSettled(pendingKeys.map(async key => [key, await DASHBOARD_LOADERS[key]()] ));
+  results.forEach(result => {
+    if (result.status === 'fulfilled') {
+      const [key, data] = result.value;
+      state[key] = data;
+    } else {
+      const key = pendingKeys[results.indexOf(result)];
+      state.dashboardLoadErrors[key] = result.reason?.message || 'load failed';
+    }
+  });
+  pendingKeys.forEach(key => {
+    delete state.dashboardLoadPending[key];
+  });
+  state.dashboardLoading = Object.keys(state.dashboardLoadPending).length > 0;
+}
+
+function queueDashboardDataLoad() {
+  const keys = dashboardLoadKeys();
+  if (!keys.length) return;
+  loadDashboardData(keys)
+    .then(() => {
+      if (location.pathname === '/dashboard') renderDashboardPage().catch(console.error);
+    })
+    .catch(error => {
+      console.error(error);
+      state.dashboardLoading = false;
+      if (location.pathname === '/dashboard') renderDashboardPage().catch(console.error);
+    });
+}
+
+function dashboardLoadingBlock(key, emptyText) {
+  if (state.dashboardLoadErrors?.[key]) return `<p class="small">加载失败：${escape(state.dashboardLoadErrors[key])}</p>`;
+  if (state.dashboardLoadPending?.[key] || state.dashboardLoading) return '<p class="small">正在加载...</p>';
+  return `<p class="small">${emptyText}</p>`;
 }
 
 export function header({ title, subtitle, stats, htmlTitle = false }) {
@@ -222,6 +287,125 @@ export function renderSiteInfoPage() {
     ${fullFooter()}
     ${imageModal()}
   `;
+}
+
+export async function renderAndroidAppPage() {
+  setPageMeta({
+    title: '安卓 APP 下载',
+    description: '下载猫猫虫咖波表情包仓库安卓 APP，支持手机端浏览、预览、投稿和下载。',
+    path: '/app'
+  });
+
+  // 渲染页面骨架
+  app.innerHTML = `
+    ${header({ title: `<a href="/" class="site-title-link" data-link aria-label="返回主页"><i class="fas fa-cat"></i> 猫猫虫咖波表情包仓库</a>`, subtitle: '安卓 APP 下载', stats: '原生轻量应用', htmlTitle: true })}
+    <main class="container">
+      <section class="android-app-hero">
+        <div class="android-app-hero-text">
+          <span class="site-info-kicker">安卓应用</span>
+          <h2>猫猫虫仓库安卓 APP</h2>
+          <p>原生 WebView 应用，极致轻量，支持文件上传下载、登录状态保持等完整功能。</p>
+        </div>
+        <a class="android-app-download-btn" href="/downloads/maomaochong-android/latest.apk">
+          <i class="fas fa-download"></i> 下载安卓 APK
+        </a>
+      </section>
+
+      <section class="android-app-panel">
+        <div class="android-app-meta-grid" id="app-meta-grid">
+          <div class="android-app-meta-item">
+            <span class="meta-label">版本</span>
+            <span class="meta-value" id="app-version">加载中...</span>
+          </div>
+          <div class="android-app-meta-item">
+            <span class="meta-label">大小</span>
+            <span class="meta-value" id="app-size">加载中...</span>
+          </div>
+          <div class="android-app-meta-item">
+            <span class="meta-label">兼容系统</span>
+            <span class="meta-value" id="app-compat">加载中...</span>
+          </div>
+          <div class="android-app-meta-item">
+            <span class="meta-label">包名</span>
+            <span class="meta-value" id="app-package">加载中...</span>
+          </div>
+        </div>
+
+        <div class="android-app-hash-section">
+          <h3>文件校验</h3>
+          <div class="android-app-hash-wrapper">
+            <code class="android-app-hash" id="app-sha256">加载中...</code>
+            <button type="button" class="copy-hash-btn" id="copy-sha256-btn" style="display:none;">
+              <i class="fas fa-copy"></i> 复制 SHA256
+            </button>
+          </div>
+        </div>
+
+        <div class="android-app-note">
+          <h3>安装说明</h3>
+          <ul>
+            <li>适合 Android 6.0 及以上设备。</li>
+            <li>安装前请确认文件大小和 SHA256 与本页一致。</li>
+            <li>本站 APK 不包含广告、推送和无关权限。</li>
+            <li>如系统提示未知来源安装，请确认下载地址来自本站后再继续。</li>
+          </ul>
+        </div>
+
+        <a class="site-info-backlink" href="/" data-link>返回首页</a>
+      </section>
+    </main>
+    ${fullFooter()}
+    ${imageModal()}
+  `;
+
+  // 加载元数据
+  try {
+    const meta = await api('/downloads/maomaochong-android/latest.json');
+
+    // 更新版本信息
+    document.getElementById('app-version').textContent = `v${meta.versionName || '1.0.0'}`;
+
+    // 格式化文件大小
+    const sizeMB = (meta.sizeBytes / (1024 * 1024)).toFixed(2);
+    const sizeKB = (meta.sizeBytes / 1024).toFixed(2);
+    const sizeDisplay = meta.sizeBytes > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+    document.getElementById('app-size').textContent = sizeDisplay;
+
+    // 更新兼容系统
+    document.getElementById('app-compat').textContent = meta.minAndroid || 'Android 6.0+';
+
+    // 更新包名
+    document.getElementById('app-package').textContent = meta.packageName || 'xyz.maomaochongmiao.app';
+
+    // 更新 SHA256
+    if (meta.sha256) {
+      document.getElementById('app-sha256').textContent = meta.sha256;
+      const copyBtn = document.getElementById('copy-sha256-btn');
+      copyBtn.style.display = 'inline-block';
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(meta.sha256);
+          toast('SHA256 已复制');
+        } catch (e) {
+          toast('复制失败，请手动复制');
+        }
+      };
+    }
+
+    // 更新下载按钮链接
+    const downloadUrl = meta.latestUrl || meta.downloadUrl || '/downloads/maomaochong-android/latest.apk';
+    const downloadBtn = document.querySelector('.android-app-download-btn');
+    if (downloadBtn) {
+      downloadBtn.href = downloadUrl;
+    }
+  } catch (error) {
+    console.error('Failed to load app metadata:', error);
+    document.getElementById('app-version').textContent = '暂时无法读取';
+    document.getElementById('app-size').textContent = '暂时无法读取';
+    document.getElementById('app-compat').textContent = 'Android 6.0+';
+    document.getElementById('app-package').textContent = 'xyz.maomaochongmiao.app';
+    document.getElementById('app-sha256').textContent = '暂时无法读取版本信息，请稍后再试。';
+  }
 }
 
 export async function renderRemoveBgPage() {
@@ -561,7 +745,7 @@ export function renderToolsListPage() {
 
 export async function renderDashboardPage() {
   if (!state.bootstrap?.viewer) return renderAuthPage();
-  await loadDashboardData();
+  queueDashboardDataLoad();
   const viewer = state.bootstrap.viewer;
   const folders = state.dashboard?.folders || [];
   const reviews = state.reviews?.folders || [];
@@ -571,6 +755,25 @@ export async function renderDashboardPage() {
   const users = state.users?.users || [];
   const redeemCodes = state.redeemCodes?.codes || [];
   const aiApiUsers = state.aiApiUsers?.users || [];
+  const mineBody = state.dashboard
+    ? `<div class="admin-card-list">${folders.length ? folders.map(ownedFolderCard).join('') : '<p class="small">你还没有上传任何文件夹。</p>'}</div>`
+    : dashboardLoadingBlock('dashboard', '我的文件夹还没有加载。');
+  const reviewsBody = state.reviews
+    ? `<div class="admin-card-list">${reviews.length ? reviews.map(reviewCard).join('') : '<p class="small">当前没有待审核内容。</p>'}</div>`
+    : dashboardLoadingBlock('reviews', '待审核内容还没有加载。');
+  const filteredExistingFolders = filterAdminFolders(existingFolders);
+  const existingFoldersBody = state.existingFolders
+    ? `<label class="field"><span>搜索文件夹</span><input id="admin-folder-search" value="${attr(state.adminFolderSearch)}" placeholder="按名称、路径或上传者搜索"></label><div class="admin-card-list">${filteredExistingFolders.length ? filteredExistingFolders.map(adminFolderCard).join('') : '<p class="small">没有找到匹配的文件夹。</p>'}</div>`
+    : dashboardLoadingBlock('existingFolders', '展开后加载现有文件夹。');
+  const announcementsBody = state.announcements
+    ? `${announcementEditorForm(state.announcementDraft)}<div class="admin-list-toolbar"><span class="small">现有公告支持直接编辑，也可以用上移下移快速调整排序。</span></div><div class="admin-card-list">${announcements.length ? announcements.map((item, index) => adminTextCard(item, index, announcements.length)).join('') : '<p class="small">暂时还没有公告。</p>'}</div>`
+    : dashboardLoadingBlock('announcements', '展开后加载公告。');
+  const settingsBody = state.siteSettings
+    ? `<form id="settings-form" class="admin-form"><label class="field"><span>说明标题</span><input name="noticeTitle" value="${attr(settings.siteNotice?.title || "")}"></label><label class="field"><span>说明内容</span><textarea name="noticeContent">${escape(settings.siteNotice?.content || "")}</textarea></label><button class="footer-btn" type="submit">保存置顶说明</button></form>`
+    : dashboardLoadingBlock('siteSettings', '展开后加载置顶说明。');
+  const aiApiBody = state.aiApiUsers ? aiApiAdminPanel(aiApiUsers) : dashboardLoadingBlock('aiApiUsers', '展开后加载 AI API 用户。');
+  const redeemCodesBody = state.redeemCodes ? redeemCodesPanel(redeemCodes) : dashboardLoadingBlock('redeemCodes', '展开后加载兑换码。');
+  const usersBody = state.users ? `<div class="admin-card-list">${users.map(userCard).join('')}</div>` : dashboardLoadingBlock('users', '展开后加载账号。');
   const uploadTitle = isAdmin() ? '上传文件夹' : '上传待审核文件夹';
   const uploadTip = isAdmin()
     ? '你上传的内容会直接发布，并显示在前台页面。'
@@ -590,10 +793,10 @@ export async function renderDashboardPage() {
       </section>
       <section class="admin-panels">
         ${adminPanel(uploadTitle, 'upload', uploadFolderForm({ mode: 'dashboard' }), uploadTip)}
-        ${adminPanel('我的文件夹', 'mine', `<div class="admin-card-list">${folders.length ? folders.map(ownedFolderCard).join('') : '<p class="small">你还没有上传任何文件夹。</p>'}</div>`)}
+        ${adminPanel('我的文件夹', 'mine', mineBody)}
       </section>
-      ${isAdmin() ? `<section class="admin-panels">${adminPanel('待审核内容', 'reviews', `<div class="admin-card-list">${reviews.length ? reviews.map(reviewCard).join('') : '<p class="small">当前没有待审核内容。</p>'}</div>`)}${adminPanel('现有文件夹管理', 'existingFolders', `<label class="field"><span>搜索文件夹</span><input id="admin-folder-search" value="${attr(state.adminFolderSearch)}" placeholder="按名称、路径或上传者搜索"></label><div class="admin-card-list">${filterAdminFolders(existingFolders).length ? filterAdminFolders(existingFolders).map(adminFolderCard).join('') : '<p class="small">没有找到匹配的文件夹。</p>'}</div>`)} </section>` : ''}
-      ${isOwner() ? `<section class="admin-panels">${adminPanel('公告管理', 'announcements', `${announcementEditorForm(state.announcementDraft)}<div class="admin-list-toolbar"><span class="small">现有公告支持直接编辑，也可以用上移下移快速调整排序。</span></div><div class="admin-card-list">${announcements.length ? announcements.map((item, index) => adminTextCard(item, index, announcements.length)).join('') : '<p class="small">暂时还没有公告。</p>'}</div>`, '默认收起，展开后可新增、编辑和排序公告。')}${adminPanel('置顶说明', 'settings', `<form id="settings-form" class="admin-form"><label class="field"><span>说明标题</span><input name="noticeTitle" value="${attr(settings.siteNotice?.title || "")}"></label><label class="field"><span>说明内容</span><textarea name="noticeContent">${escape(settings.siteNotice?.content || "")}</textarea></label><button class="footer-btn" type="submit">保存置顶说明</button></form>`, '这里对应前台公告页顶部的置顶说明内容。')} </section><section class="admin-panels">${adminPanel('AI API 余额与会员', 'aiApi', aiApiAdminPanel(aiApiUsers), '给用户手动充值 API 余额，或开通 API 调用会员。')}${adminPanel('兑换码补货', 'redeemCodes', redeemCodesPanel(redeemCodes), '支持抠图会员、API会员月卡、API余额1元和10元兑换码；每个兑换码只能使用一次。')}${adminPanel('账号管理', 'users', `<div class="admin-card-list">${users.map(userCard).join('')}</div>`)} </section>` : ''}
+      ${isAdmin() ? `<section class="admin-panels">${adminPanel('待审核内容', 'reviews', reviewsBody)}${adminPanel('现有文件夹管理', 'existingFolders', existingFoldersBody)} </section>` : ''}
+      ${isOwner() ? `<section class="admin-panels">${adminPanel('公告管理', 'announcements', announcementsBody, '默认收起，展开后可新增、编辑和排序公告。')}${adminPanel('置顶说明', 'settings', settingsBody, '这里对应前台公告页顶部的置顶说明内容。')} </section><section class="admin-panels">${adminPanel('AI API 余额与会员', 'aiApi', aiApiBody, '给用户手动充值 API 余额，或开通 API 调用会员。')}${adminPanel('兑换码补货', 'redeemCodes', redeemCodesBody, '支持抠图会员、API会员月卡、API余额1元和10元兑换码；每个兑换码只能使用一次。')}${adminPanel('账号管理', 'users', usersBody)} </section>` : ''}
     </main>
     ${compactFooter()}
   `;
@@ -684,6 +887,7 @@ export function homeQuickEntries(showNotice, showTools) {
   const buttons = [
     profileEntryLink(),
     '<a class="home-quick-btn" href="/tools/list" data-link><i class="fas fa-toolbox"></i> 工具列表</a>',
+    '<a class="home-quick-btn" href="/app" data-link><i class="fas fa-mobile-screen-button"></i> 安卓APP</a>',
     showNotice
       ? '<a class="home-quick-btn" href="/site-info" data-link><i class="fas fa-bullhorn"></i> 公告</a>'
       : '<button class="home-quick-btn" type="button" data-home-show-notice="1"><i class="fas fa-bullhorn"></i> 公告</button>'
@@ -728,7 +932,10 @@ export function noticeEntry(item) {
 
 export function adminFolderCard(folder) {
   const editing = state.adminEditingFolderId === folder.id;
-  return `<article class="admin-item-card"><div class="folder-status"><span class="notice-badge">${statusLabel(folder.status)}</span>${folder.publicUrl ? `<a href="${folder.publicUrl}" data-link class="site-info-backlink mini-link">查看页面</a>` : ''}</div><h4>${escape(folder.name)}</h4><p class="small">路径：${escape(folder.slug)} · 资源数：${folder.assetCount}</p><p class="small">上传者：${escape(folder.ownerName)} @${escape(folder.ownerUsername)}</p><p>${escape(folder.description || '暂无说明')}</p><div class="review-button-row admin-card-actions"><button class="footer-btn footer-btn-small" type="button" data-edit-folder="${folder.id}">${editing ? '收起编辑' : '编辑文件夹'}</button><button class="copy-btn" type="button" data-delete-folder="${folder.id}">删除文件夹</button></div>${editing ? renderAdminFolderEditor(folder) : ''}</article>`;
+  const editor = folder.detailLoading
+    ? '<div class="folder-admin-editor"><p class="small">正在加载完整资源...</p></div>'
+    : renderAdminFolderEditor(folder);
+  return `<article class="admin-item-card"><div class="folder-status"><span class="notice-badge">${statusLabel(folder.status)}</span>${folder.publicUrl ? `<a href="${folder.publicUrl}" data-link class="site-info-backlink mini-link">查看页面</a>` : ''}</div><h4>${escape(folder.name)}</h4><p class="small">路径：${escape(folder.slug)} · 资源数：${folder.assetCount}</p><p class="small">上传者：${escape(folder.ownerName)} @${escape(folder.ownerUsername)}</p><p>${escape(folder.description || '暂无说明')}</p><div class="review-button-row admin-card-actions"><button class="footer-btn footer-btn-small" type="button" data-edit-folder="${folder.id}">${editing ? '收起编辑' : '编辑文件夹'}</button><button class="copy-btn" type="button" data-delete-folder="${folder.id}">删除文件夹</button></div>${editing ? editor : ''}</article>`;
 }
 
 export const reviewCard = function (folder) {
@@ -1096,11 +1303,11 @@ export function aiApiUserCard(user) {
 }
 
 export function compactFooter() {
-  return `<footer><div class="container"><div class="footer-content footer-content-compact"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>这里主要收集和分享猫猫虫咖波表情包，方便按分类查找、预览和下载。</p><p>完整公告、站务说明和详细页脚内容请前往 <a href="/site-info" data-link>site-info 页面</a> 查看。</p></div><div class="footer-section"><h3><i class="fas fa-envelope"></i> 联系方式</h3><p>投稿邮箱：<span id="email">2641821302@qq.com</span></p><p>如需投稿、侵权删除或站务联系，请先前往公告页查看说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 • 本网站仅为个人收藏用途 • 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
+  return `<footer><div class="container"><div class="footer-content footer-content-compact"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>这里主要收集和分享猫猫虫咖波表情包，方便按分类查找、预览和下载。</p><p>完整公告、站务说明和详细页脚内容请前往 <a href="/site-info" data-link>site-info 页面</a> 查看。</p><p><a class="footer-btn footer-link-btn" href="/app" data-link>下载安卓 APP</a></p></div><div class="footer-section"><h3><i class="fas fa-envelope"></i> 联系方式</h3><p>投稿邮箱：<span id="email">2641821302@qq.com</span></p><p>如需投稿、侵权删除或站务联系，请先前往公告页查看说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 • 本网站仅为个人收藏用途 • 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
 }
 
 export function fullFooter() {
-  return `<footer><div class="container"><div class="footer-content"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>本站致力于收集和分享猫猫虫咖波的图片、表情包和视频内容，所有资源均来自网络投稿，仅供娱乐使用。</p><p>关于猫猫虫官方联动《我的英雄学院》：本站立场明确且不会含糊。我们坚定热爱中国，坚定维护国家主权、统一和领土完整，坚定反对任何歪曲侵略历史、美化军国主义、伤害中华民族感情的内容。中华民族伟大复兴的大势不可阻挡，国家统一的大义不容挑战，任何“台独”分裂言行都注定失败。希望广大同胞都站在历史正确的一边，以身为堂堂正正的中国人为荣，铭记抗战苦难与先烈牺牲。本站只欢迎可爱、健康、积极的猫猫虫咖波内容，不欢迎任何伤害国家和民族感情的杂音。</p><p>如果您是表情包作者并希望删除或添加您的作品，请通过下方按钮联系我们。当前页面就是完整公告与站务页。</p></div><div class="footer-section"><h3><i class="fas fa-upload"></i> 投稿表情包</h3><p>欢迎投稿新的猫猫虫咖波表情包！请确保表情包内容健康，不包含龙图等不良内容。</p><p>投稿规则：先注册并登录个人中心；在“上传作品”里填写作品名称、公开路径和说明；上传图片或视频；提交后等待审核，通过后才会公开显示。</p><p>建议优先上传命名清晰、分类明确、内容完整的资源，这样审核会更顺畅。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn" href="/profile" data-link>前往个人中心投稿</a></div></div><div class="footer-section"><h3><i class="fas fa-shield-heart"></i> 侵权删除</h3><p>如果您发现任何侵权内容，或希望删除某一个表情包，请通过QQ联系我们。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn qq-contact-btn" href="https://qm.qq.com/q/AKPiThhsQg" target="_blank" rel="noreferrer">通过QQ联系删除</a></div><p>点击上方按钮将跳转到QQ聊天页面，请直接发送表情包链接或说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 · 本网站仅为个人收藏用途 · 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
+  return `<footer><div class="container"><div class="footer-content"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>本站致力于收集和分享猫猫虫咖波的图片、表情包和视频内容，所有资源均来自网络投稿，仅供娱乐使用。</p><p>关于猫猫虫官方联动《我的英雄学院》：本站立场明确且不会含糊。我们坚定热爱中国，坚定维护国家主权、统一和领土完整，坚定反对任何歪曲侵略历史、美化军国主义、伤害中华民族感情的内容。中华民族伟大复兴的大势不可阻挡，国家统一的大义不容挑战，任何”台独”分裂言行都注定失败。希望广大同胞都站在历史正确的一边，以身为堂堂正正的中国人为荣，铭记抗战苦难与先烈牺牲。本站只欢迎可爱、健康、积极的猫猫虫咖波内容，不欢迎任何伤害国家和民族感情的杂音。</p><p>如果您是表情包作者并希望删除或添加您的作品，请通过下方按钮联系我们。当前页面就是完整公告与站务页。</p></div><div class="footer-section"><h3><i class="fas fa-upload"></i> 投稿表情包</h3><p>欢迎投稿新的猫猫虫咖波表情包！请确保表情包内容健康，不包含龙图等不良内容。</p><p>投稿规则：先注册并登录个人中心；在”上传作品”里填写作品名称、公开路径和说明；上传图片或视频；提交后等待审核，通过后才会公开显示。</p><p>建议优先上传命名清晰、分类明确、内容完整的资源，这样审核会更顺畅。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn" href="/profile" data-link>前往个人中心投稿</a></div></div><div class="footer-section"><h3><i class="fas fa-shield-heart"></i> 侵权删除</h3><p>如果您发现任何侵权内容，或希望删除某一个表情包，请通过QQ联系我们。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn qq-contact-btn" href="https://qm.qq.com/q/AKPiThhsQg" target="_blank" rel="noreferrer">通过QQ联系删除</a><a class="footer-btn footer-link-btn" href="/app" data-link>下载安卓 APP</a></div><p>点击上方按钮将跳转到QQ聊天页面，请直接发送表情包链接或说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 · 本网站仅为个人收藏用途 · 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
 }
 
 export function imageModal() {
@@ -1854,4 +2061,3 @@ export function renderFolderEditTools(folder) {
 export function renderAdminFolderEditor(folder) {
   return `<div class="folder-admin-editor"><form class="admin-form" data-admin-folder-meta-form="${folder.id}"><div class="admin-folder-meta-grid"><label class="field"><span>文件夹名称</span><input name="name" value="${attr(folder.name)}" required></label><label class="field"><span>公开路径</span><input name="slug" value="${attr(folder.slug)}" pattern="[a-z0-9-]{3,80}" title="请填写不重复的英文小写路径，例如 example-folder" required></label><label class="field"><span>当前状态</span><select name="status"><option value="draft" ${folder.status === 'draft' ? 'selected' : ''}>草稿</option><option value="pending_review" ${folder.status === 'pending_review' ? 'selected' : ''}>待审核</option><option value="published" ${folder.status === 'published' ? 'selected' : ''}>已公开</option><option value="rejected" ${folder.status === 'rejected' ? 'selected' : ''}>已驳回</option><option value="offline" ${folder.status === 'offline' ? 'selected' : ''}>已下架</option></select></label></div><label class="field"><span>说明</span><textarea name="description">${escape(folder.description || '')}</textarea></label><div class="review-button-row"><button class="footer-btn footer-btn-small" type="submit">保存文件夹信息</button><button class="copy-btn" type="button" data-cancel-admin-folder-edit="1">取消</button></div></form><div class="folder-edit-tools"><form class="admin-form compact-form" data-admin-folder-assets-form="${folder.id}"><label class="field"><span>追加图片 / 视频</span><input name="files" type="file" multiple accept="image/*,video/mp4,video/webm,video/quicktime" required></label><button class="footer-btn footer-btn-small" type="submit">追加资源</button></form></div><div class="admin-existing-assets"><div class="admin-list-toolbar"><span class="small">这里可以直接维护现有资源；改状态会同步影响这个文件夹下的资源公开状态。</span></div>${renderFolderAssetGallery(folder, { editable: true, manageMode: 'admin' })}</div></div>`;
 }
-

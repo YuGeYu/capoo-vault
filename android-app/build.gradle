@@ -1,0 +1,4 @@
+// Top-level build file. Plugin versions resolved from the cached AGP via aliyun mirror.
+plugins {
+    id 'com.android.application' version '8.11.1' apply false
+}

@@ -1,6 +1,6 @@
 ﻿import { state, api, toast, copyText, shareCurrentPage, applyTheme, normalize, findAdminFolderById, confirmDangerAction, closeConfirmDialog, getDeleteConfirmationOptions, getReviewConfirmationOptions, getAdminFolderSaveConfirmationOptions, isAdmin, isOwner, setHomeLayoutPreference } from './app-support.js';
 
-import { renderHomePage, renderSiteInfoPage, renderRemoveBgPage, renderAiChatPage, renderAiApiPage, renderMusicPage, renderInspirationPage, renderLinkMatchPage, renderToolsListPage, renderDashboardPage, renderAuthPage, renderMessagePage, renderFolderPage, renderProfileEntryPage, renderProfilePage, openPreview, previewPrevious, previewNext, closeModal, restoreHomePanels, dismissHomeNotice, dismissHomeTools, showHomeNotice, showHomeTools, dismissHomeRecommendation, dismissHomeRecommendationsForToday, applyHomeSearch } from './app-renderers.js';
+import { renderHomePage, renderSiteInfoPage, renderAndroidAppPage, renderRemoveBgPage, renderAiChatPage, renderAiApiPage, renderMusicPage, renderInspirationPage, renderLinkMatchPage, renderToolsListPage, renderDashboardPage, renderAuthPage, renderMessagePage, renderFolderPage, renderProfileEntryPage, renderProfilePage, openPreview, previewPrevious, previewNext, closeModal, restoreHomePanels, dismissHomeNotice, dismissHomeTools, showHomeNotice, showHomeTools, dismissHomeRecommendation, dismissHomeRecommendationsForToday, applyHomeSearch } from './app-renderers.js';
 
 export async function boot() {
   bindEvents();
@@ -43,6 +43,7 @@ export async function route() {
   const path = decodeURIComponent(location.pathname);
   closeModal();
   if (path === '/site-info') return renderSiteInfoPage();
+  if (path === '/app') return renderAndroidAppPage();
   if (path === '/dashboard') return renderDashboardPage();
   if (path === '/profile') return renderProfileEntryPage();
   const profileMatch = path.match(/^\/profile\/(\d+)$/);
@@ -76,18 +77,51 @@ export async function refreshBootstrap() {
 
 export async function loadDashboardData() {
   if (!state.bootstrap?.viewer) return;
-  state.dashboard = await api('/api/dashboard/folders');
+  const tasks = [['dashboard', api('/api/dashboard/folders')]];
   if (isAdmin()) {
-    state.reviews = await api('/api/admin/reviews');
-    state.existingFolders = await api('/api/admin/folders');
+    tasks.push(['reviews', api('/api/admin/reviews')]);
+    tasks.push(['existingFolders', api('/api/admin/folders')]);
   }
   if (isOwner()) {
-    state.announcements = await api('/api/admin/announcements');
-    state.siteSettings = await api('/api/admin/site-settings');
-    state.users = await api('/api/admin/users');
-    state.redeemCodes = await api('/api/admin/remove-bg/redeem-codes');
-    state.aiApiUsers = await api('/api/admin/ai-api/users');
+    tasks.push(['announcements', api('/api/admin/announcements')]);
+    tasks.push(['siteSettings', api('/api/admin/site-settings')]);
+    tasks.push(['users', api('/api/admin/users')]);
+    tasks.push(['redeemCodes', api('/api/admin/remove-bg/redeem-codes')]);
+    tasks.push(['aiApiUsers', api('/api/admin/ai-api/users')]);
   }
+  const results = await Promise.allSettled(tasks.map(async ([key, request]) => [key, await request]));
+  results.forEach((result, index) => {
+    const key = tasks[index][0];
+    if (result.status === 'fulfilled') state[key] = result.value[1];
+    else {
+      state.dashboardLoadErrors ||= {};
+      state.dashboardLoadErrors[key] = result.reason?.message || 'load failed';
+    }
+  });
+}
+
+function upsertFolderInCollection(collectionKey, folder) {
+  if (!folder || !state[collectionKey]?.folders) return;
+  const folders = state[collectionKey].folders;
+  const index = folders.findIndex(item => item.id === folder.id);
+  if (index >= 0) folders[index] = { ...folders[index], ...folder };
+  else folders.unshift(folder);
+}
+
+function removeFolderFromCollection(collectionKey, folderId) {
+  if (!state[collectionKey]?.folders) return;
+  state[collectionKey].folders = state[collectionKey].folders.filter(folder => folder.id !== folderId);
+}
+
+function setButtonBusy(button, text) {
+  if (!button) return () => {};
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = text;
+  return () => {
+    button.disabled = false;
+    button.textContent = originalText;
+  };
 }
 
 export function onClick(event) {
@@ -663,20 +697,26 @@ export async function onUpload(form) {
     return;
   }
   const inProfileUpload = form.dataset.uploadContext === 'profile' || location.pathname.startsWith('/profile/');
+  const restoreButton = setButtonBusy(form.querySelector('button[type="submit"]'), '上传中...');
   try {
     const result = await api('/api/dashboard/folders', { method: 'POST', body: new FormData(form) });
     form.reset();
-    await refreshBootstrap();
     if (inProfileUpload) {
       state.profile = await api('/api/profile/me');
       state.profileActiveTab = 'works';
       await renderProfilePage();
     } else {
+      if (result.folder) {
+        upsertFolderInCollection('dashboard', result.folder);
+        upsertFolderInCollection('existingFolders', result.folder);
+      }
       await renderDashboardPage();
     }
     toast(result.message || '\u6587\u4ef6\u5939\u5df2\u4fdd\u5b58');
   } catch (error) {
     toast(error.message, 'error');
+  } finally {
+    restoreButton();
   }
 }
 
@@ -799,18 +839,24 @@ export async function onReview(button) {
   const folderId = button.dataset.folderId;
   const action = button.dataset.reviewAction;
   const note = document.querySelector(`[data-review-note="${folderId}"]`)?.value || '';
+  const confirmOptions = getReviewConfirmationOptions(action);
+  if (confirmOptions) {
+    const confirmed = await confirmDangerAction(confirmOptions);
+    if (!confirmed) return;
+  }
+  const card = button.closest('.admin-item-card');
+  const reviewButtons = [...(card?.querySelectorAll('[data-review-action]') || [])];
+  const restoreButtons = reviewButtons.map(item => setButtonBusy(item, item === button ? '处理中...' : item.textContent));
   try {
-    const confirmOptions = getReviewConfirmationOptions(action);
-    if (confirmOptions) {
-      const confirmed = await confirmDangerAction(confirmOptions);
-      if (!confirmed) return;
-    }
-    await api(`/api/admin/reviews/${folderId}`, { method: 'POST', body: JSON.stringify({ action, note }) });
-    await refreshBootstrap();
+    const result = await api(`/api/admin/reviews/${folderId}`, { method: 'POST', body: JSON.stringify({ action, note }) });
+    removeFolderFromCollection('reviews', folderId);
+    if (result.folder) upsertFolderInCollection('existingFolders', result.folder);
     await renderDashboardPage();
-    toast('审核结果已保存');
+    toast(result.message || '审核结果已保存');
   } catch (error) {
     toast(error.message, 'error');
+  } finally {
+    restoreButtons.forEach(restore => restore());
   }
 }
 
@@ -952,8 +998,26 @@ export async function onResubmitFolder(folderId) {
   }
 }
 
-export function toggleAdminFolderEditor(folderId = null) {
-  state.adminEditingFolderId = state.adminEditingFolderId === folderId ? null : folderId;
+export async function toggleAdminFolderEditor(folderId = null) {
+  if (!folderId || state.adminEditingFolderId === folderId) {
+    state.adminEditingFolderId = null;
+    renderDashboardPage().catch(console.error);
+    return;
+  }
+  state.adminEditingFolderId = folderId;
+  state.collapsedPanels.existingFolders = false;
+  const folder = findAdminFolderById(folderId);
+  if (folder && !folder.assetsLoaded) {
+    folder.detailLoading = true;
+    renderDashboardPage().catch(console.error);
+    try {
+      const result = await api(`/api/admin/folders/${folderId}`);
+      upsertFolderInCollection('existingFolders', { ...(result.folder || {}), assetsLoaded: true, detailLoading: false });
+    } catch (error) {
+      folder.detailLoading = false;
+      toast(error.message, 'error');
+    }
+  }
   renderDashboardPage().catch(console.error);
 }
 
@@ -1005,5 +1069,3 @@ export async function onAdminAppendAssets(form) {
     toast(error.message, 'error');
   }
 }
-
-

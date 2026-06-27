@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shell Selftest</title>
+<style>
+  body { font-family: sans-serif; padding: 16px; font-size: 18px; }
+  .row { margin: 18px 0; padding: 14px; border: 2px solid #FF7AA2; border-radius: 8px; }
+  a, button, input { font-size: 18px; }
+  #out { color: green; font-weight: bold; }
+</style>
+</head>
+<body>
+<h2>WebView 壳自检</h2>
+
+<div class="row">
+  <p>1. 文件选择器（onShowFileChooser）</p>
+  <input id="filepick" type="file" accept="image/*,video/*" multiple>
+  <p>已选择：<span id="filecount">0</span></p>
+</div>
+
+<div class="row">
+  <p>2. 下载（DownloadListener）</p>
+  <a id="dl" href="http://10.0.2.2:8731/testfile.bin">下载测试文件（attachment）</a>
+  <p><button id="dlbtn" type="button">自动触发下载</button></p>
+</div>
+
+<div class="row">
+  <p>3. 外部链接（应跳出 APP）</p>
+  <a id="ext" href="https://www.bing.com/">打开 Bing（外部浏览器）</a>
+</div>
+
+<div class="row">
+  <p>4. QQ 链接（应跳出 APP）</p>
+  <a id="qq" href="https://qm.qq.com/q/abcdefg">加入 QQ 群</a>
+</div>
+
+<script>
+  document.getElementById('filepick').addEventListener('change', function (e) {
+    document.getElementById('filecount').textContent = e.target.files.length;
+  });
+</script>
+</body>
+</html>

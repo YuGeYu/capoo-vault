@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Framework Material theme, no ActionBar. Available since API 21,
+         safe for minSdk 23. Avoids appcompat dependency entirely. -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#FF7AA2</item>
+        <item name="android:colorPrimaryDark">#E0608A</item>
+        <item name="android:colorAccent">#FF7AA2</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>

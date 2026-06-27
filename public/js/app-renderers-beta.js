@@ -41,6 +41,7 @@ export function renderBetaHomePage() {
           <a href="/" data-link class="beta-nav-link active">首页</a>
           <a href="/tools/list" data-link class="beta-nav-link">工具</a>
           <a href="/site-info" data-link class="beta-nav-link">公告</a>
+          <a href="/app" data-link class="beta-nav-link">APP</a>
           ${viewer ? `<a href="/profile/${viewer.publicId || ''}" data-link class="beta-nav-link">个人中心</a>` : ''}
         </div>
       </div>
@@ -194,7 +195,7 @@ export function renderBetaHomePage() {
   const betaFooter = `
     <footer class="beta-home-footer">
       <div class="beta-footer-content">
-        <p>© 2024-2026 猫猫虫咖波表情包仓库 · <a href="/site-info" data-link>站务说明</a></p>
+        <p>© 2024-2026 猫猫虫咖波表情包仓库 · <a href="/site-info" data-link>站务说明</a> · <a href="/app" data-link>安卓APP</a></p>
         <p class="beta-footer-hint">
           <i class="fas fa-flask"></i> 您正在使用新版首页内测 ·
           <button class="beta-footer-link" data-switch-to-classic>返回旧版</button>

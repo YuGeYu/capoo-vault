@@ -9,6 +9,8 @@ export const state = {
   siteSettings: null,
   redeemCodes: null,
   aiApiUsers: null,
+  dashboardLoading: false,
+  dashboardLoadErrors: {},
   profile: null,
   profileActiveTab: 'works',
   theme: localStorage.getItem('theme') || 'light',
@@ -52,13 +54,24 @@ let homeRestoreHintTimer = null;
 let pendingConfirm = null;
 
 export async function api(url, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  const startedAt = performance.now();
+  let status = 0;
   const headers = new Headers(options.headers || {});
   if (!(options.body instanceof FormData) && !headers.has('content-type')) headers.set('content-type', 'application/json');
-  const response = await fetch(url, { ...options, headers, credentials: 'include' });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!response.ok) throw new Error(data.error || '请求失败');
-  return data;
+  try {
+    const response = await fetch(url, { ...options, headers, credentials: 'include' });
+    status = response.status;
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!response.ok) throw new Error(data.error || '请求失败');
+    return data;
+  } finally {
+    const duration = Math.round(performance.now() - startedAt);
+    if (location.pathname === '/dashboard' || url.includes('/api/admin/') || url.includes('/api/dashboard/')) {
+      console.info('[api]', { method, url, status, durationMs: duration, dashboard: location.pathname === '/dashboard' });
+    }
+  }
 }
 
 export function toast(message, type = 'info') {

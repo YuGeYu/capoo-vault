@@ -1,4 +1,5 @@
-name = "maomaochongtz-admin"
+# Public example config. Production deploys must use wrangler.production.toml.
+name = "maomaochongtz-admin-dev-placeholder"
 main = "src/worker.js"
 compatibility_date = "2026-03-21"
 

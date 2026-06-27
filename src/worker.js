@@ -2,6 +2,7 @@
 const SESSION_TTL_DAYS = 14;
 const MAX_FILES_PER_FOLDER = 60;
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const UPLOAD_R2_CONCURRENCY = 3;
 const REMOVE_BG_FREE_DAILY_LIMIT = 10;
 const REMOVE_BG_MEMBER_DAILY_LIMIT = 10000;
 const REMOVE_BG_MEMBER_PLAN_CODE = 'remove_bg_member';
@@ -51,22 +52,65 @@ const INSPIRATION_TOOLS = [
 ];
 const SOFTWARE_RELEASE_CHANNELS = new Set(['prod', 'test', 'dev']);
 const SOFTWARE_RELEASE_SEVERITIES = new Set(['normal', 'recommended', 'critical']);
+const SITE_DEFAULT_NAME = '猫猫虫咖波表情包仓库';
+const SEO_FIXED_PAGES = [
+  { path: '/', title: SITE_DEFAULT_NAME, description: '猫猫虫咖波表情包仓库，按分类浏览和搜索图片、表情包与视频内容，支持预览、收藏、评论与下载。', priority: '1.0', changefreq: 'daily' },
+  { path: '/site-info', title: `${SITE_DEFAULT_NAME} - 站内公告与站务`, description: '查看猫猫虫咖波表情包仓库的站内公告、投稿说明、侵权删除方式和站务信息。', priority: '0.7', changefreq: 'weekly' },
+  { path: '/app', title: `${SITE_DEFAULT_NAME} - 安卓 APP 下载`, description: '下载猫猫虫咖波表情包仓库安卓 APP，支持手机端浏览、预览、投稿和下载。', priority: '0.8', changefreq: 'weekly' },
+  { path: '/tools/list', title: `${SITE_DEFAULT_NAME} - 工具列表`, description: '猫猫虫咖波表情包仓库工具列表，集中进入 AI 聊天、AI 抠图、慢慢听歌、灵感工坊和趣味测试。', priority: '0.8', changefreq: 'weekly' }
+];
+const SEO_TOOL_PAGES = [
+  { path: '/tools/remove-bg', title: `${SITE_DEFAULT_NAME} - AI 抠图`, description: '上传图片后在浏览器内完成 AI 抠图和去背景预览，登录用户可按每日额度下载结果。', priority: '0.7', changefreq: 'weekly' },
+  { path: '/tools/ai-chat', title: `${SITE_DEFAULT_NAME} - AI 聊天`, description: '站内 AI 聊天工具，可咨询网站使用问题、分析图片内容、辅助表情包命名和分类说明。', priority: '0.7', changefreq: 'weekly' },
+  { path: '/tools/music', title: `${SITE_DEFAULT_NAME} - 慢慢听歌`, description: '慢慢听歌是站内音乐播放器，支持歌曲搜索、播放、收藏、历史记录和歌词查看。', priority: '0.7', changefreq: 'weekly' },
+  { path: '/tools/inspiration', title: `${SITE_DEFAULT_NAME} - 灵感工坊`, description: '灵感工坊提供随机文案、每日早报、壁纸、二维码、号码归属地和显卡排行等轻量工具。', priority: '0.7', changefreq: 'weekly' },
+  { path: '/tools/link-match', title: `${SITE_DEFAULT_NAME} - 咖波连连看`, description: '咖波连连看使用站内公开表情包生成牌面，支持限时连线消除、提示、洗牌和分数记录。', priority: '0.7', changefreq: 'weekly' }
+];
+const SEO_TEST_PAGES = [
+  { path: '/tools/sbti/', title: 'SBTI 人格测试', description: 'SBTI 人格测试是轻松向人格测试，完成题目后查看人格代号、结果说明和维度评分。', priority: '0.6', changefreq: 'monthly' },
+  { path: '/tools/csti/', title: 'CSTI 人格测试', description: 'CSTI 人格测试是一套偏 CS 对局风格的趣味测试，完成题项后查看你的游戏人格画像。', priority: '0.6', changefreq: 'monthly' },
+  { path: '/tools/ysti/', title: 'YSTI 原神人格测试', description: 'YSTI 原神人格测试包含 30 道题，测出你在提瓦特大陆的风格画像和角色倾向。', priority: '0.6', changefreq: 'monthly' }
+];
+const SEO_PRIVATE_SPA_PAGES = new Map([
+  ['/dashboard', { title: `${SITE_DEFAULT_NAME} - 后台工作台`, description: '后台工作台用于投稿管理、审核、公告和站务处理。', noindex: true }],
+  ['/profile', { title: `${SITE_DEFAULT_NAME} - 个人中心登录`, description: '登录或注册后进入个人中心，管理投稿、收藏、评论和个人资料。', noindex: true }],
+  ['/tools/ai-api', { title: `${SITE_DEFAULT_NAME} - AI 对话 API 申请`, description: '登录后可申请本站 AI 对话 API Key，查看调用额度和余额。', noindex: true }]
+]);
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const startedAt = performance.now();
 
     if (request.method === 'OPTIONS') {
       return withCors(new Response(null, { status: 204 }));
     }
 
     try {
+      // Android APP 下载路由（公开访问）
+      if (url.pathname.startsWith('/downloads/maomaochong-android/')) {
+        return await handleAndroidDownload(request, env, url);
+      }
+
       if (url.pathname.startsWith('/api/')) {
-        return withCors(await handleApi(request, env, url));
+        return withCors(withServerTiming(await handleApi(request, env, url), startedAt));
       }
 
       if (url.pathname.startsWith('/media/')) {
         return await handleMedia(request, env, url);
+      }
+
+      if (url.pathname === '/robots.txt') {
+        return handleRobots(request, env, url);
+      }
+
+      if (url.pathname === '/sitemap.xml') {
+        return await handleSitemap(request, env, url);
+      }
+
+      const seoResponse = await handleSeoHtml(request, env, url);
+      if (seoResponse) {
+        return seoResponse;
       }
 
       const assetResponse = await env.ASSETS.fetch(request);
@@ -82,7 +126,7 @@ export default {
     } catch (error) {
       console.error(error);
       const status = error instanceof HttpError ? error.status : 500;
-      return withCors(json({ error: error.message || '服务器开小差了，请稍后再试。' }, status));
+      return withCors(withServerTiming(json({ error: error.message || '服务器开小差了，请稍后再试。' }, status), startedAt));
     }
   }
 };
@@ -325,7 +369,18 @@ async function handleApi(request, env, url) {
 
   if (pathname === '/api/admin/folders' && method === 'GET') {
     const session = await requireRole(request, env, ['admin', 'owner']);
-    return json({ folders: await getFoldersForAdmin(env, session.user) });
+    return json({
+      folders: await getFoldersForAdmin(env, session.user, {
+        limit: url.searchParams.get('limit'),
+        search: url.searchParams.get('search')
+      })
+    });
+  }
+
+  const adminFolderDetailMatch = pathname.match(/^\/api\/admin\/folders\/([^/]+)$/);
+  if (adminFolderDetailMatch && method === 'GET') {
+    const session = await requireRole(request, env, ['admin', 'owner']);
+    return json({ folder: await getFolderById(env, adminFolderDetailMatch[1], session.user) });
   }
 
   if (pathname === '/api/admin/announcements' && method === 'GET') {
@@ -516,6 +571,421 @@ async function handleMedia(request, env, url) {
   headers.set('etag', object.httpEtag);
   headers.set('cache-control', asset.status === 'published' ? 'public, max-age=86400' : 'private, max-age=120');
   return new Response(object.body, { headers });
+}
+
+function handleRobots(request, env, url) {
+  if (!['GET', 'HEAD'].includes(request.method.toUpperCase())) {
+    return new Response('Method Not Allowed', { status: 405 });
+  }
+  const origin = getSiteOrigin(env, url);
+  const body = [
+    'User-agent: *',
+    'Allow: /',
+    'Allow: /media/',
+    'Disallow: /api/',
+    'Disallow: /dashboard',
+    'Disallow: /tools/ai-api',
+    `Sitemap: ${origin}/sitemap.xml`,
+    ''
+  ].join('\n');
+  return textResponse(request, body, 'text/plain; charset=utf-8');
+}
+
+async function handleSitemap(request, env, url) {
+  if (!['GET', 'HEAD'].includes(request.method.toUpperCase())) {
+    return new Response('Method Not Allowed', { status: 405 });
+  }
+  const origin = getSiteOrigin(env, url);
+  const today = new Date().toISOString();
+  const [folderRows, profileRows] = await Promise.all([
+    getSeoSitemapFolders(env),
+    getSeoSitemapProfiles(env)
+  ]);
+  const entries = [
+    ...SEO_FIXED_PAGES.map(page => ({ ...page, lastmod: today })),
+    ...SEO_TOOL_PAGES.map(page => ({ ...page, lastmod: today })),
+    ...SEO_TEST_PAGES.map(page => ({ ...page, lastmod: today })),
+    ...folderRows.map(row => ({
+      path: `/${encodeURIComponent(row.slug)}`,
+      lastmod: row.lastmod || today,
+      changefreq: 'weekly',
+      priority: '0.8'
+    })),
+    ...profileRows.map(row => ({
+      path: `/profile/${encodeURIComponent(row.public_id)}`,
+      lastmod: row.lastmod || today,
+      changefreq: 'weekly',
+      priority: '0.6'
+    }))
+  ];
+
+  const urls = entries.map(entry => {
+    const loc = absoluteUrl(origin, entry.path);
+    return [
+      '  <url>',
+      `    <loc>${xmlEscape(loc)}</loc>`,
+      `    <lastmod>${xmlEscape(formatSitemapDate(entry.lastmod))}</lastmod>`,
+      entry.changefreq ? `    <changefreq>${xmlEscape(entry.changefreq)}</changefreq>` : '',
+      entry.priority ? `    <priority>${xmlEscape(entry.priority)}</priority>` : '',
+      '  </url>'
+    ].filter(Boolean).join('\n');
+  }).join('\n');
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+  return textResponse(request, body, 'application/xml; charset=utf-8', {
+    'cache-control': 'public, max-age=300'
+  });
+}
+
+async function handleSeoHtml(request, env, url) {
+  if (!isSeoHtmlRequest(request, url)) return null;
+  const route = await getSeoRouteData(env, url);
+  if (!route) return null;
+
+  const indexUrl = new URL('/index.html', url.origin);
+  const indexResponse = await env.ASSETS.fetch(new Request(indexUrl.toString(), { method: 'GET', headers: request.headers }));
+  if (!indexResponse.ok) return null;
+  const baseHtml = await indexResponse.text();
+  const origin = getSiteOrigin(env, url);
+  const canonical = route.canonical || absoluteUrl(origin, route.path || url.pathname);
+  const html = injectSeoHtml(baseHtml, {
+    ...route,
+    origin,
+    canonical,
+    siteName: env.SITE_NAME || SITE_DEFAULT_NAME
+  });
+  const headers = new Headers(indexResponse.headers);
+  headers.set('content-type', 'text/html; charset=utf-8');
+  headers.set('cache-control', route.noindex ? 'no-store' : 'public, max-age=300');
+  if (route.noindex) headers.set('x-robots-tag', 'noindex, follow');
+  return new Response(request.method.toUpperCase() === 'HEAD' ? null : html, { status: 200, headers });
+}
+
+function isSeoHtmlRequest(request, url) {
+  const method = request.method.toUpperCase();
+  if (!['GET', 'HEAD'].includes(method)) return false;
+  const pathname = url.pathname;
+  if (pathname.startsWith('/api/') || pathname.startsWith('/media/') || pathname.startsWith('/models/')) return false;
+  if (/\.[a-z0-9]{1,12}$/i.test(pathname)) return false;
+  return true;
+}
+
+async function getSeoRouteData(env, url) {
+  const pathname = normalizeSeoPath(url.pathname);
+  const fixed = SEO_FIXED_PAGES.find(page => page.path === pathname);
+  if (fixed?.path === '/') {
+    const folders = await getPublicFolders(env, 12);
+    return {
+      ...fixed,
+      type: 'home',
+      schemaType: 'WebSite',
+      bodyHtml: renderSeoHome(fixed, folders),
+      jsonLd: {
+        '@type': 'WebSite',
+        name: SITE_DEFAULT_NAME,
+        description: fixed.description,
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: `${getSiteOrigin(env, url)}/?q={search_term_string}`,
+          'query-input': 'required name=search_term_string'
+        }
+      }
+    };
+  }
+  if (fixed?.path === '/site-info') {
+    const announcements = await getAnnouncements(env, true);
+    const siteNotice = await getSiteSetting(env, 'site_notice', defaultSiteNotice());
+    return {
+      ...fixed,
+      type: 'site-info',
+      schemaType: 'AboutPage',
+      bodyHtml: renderSeoSiteInfo(fixed, siteNotice, announcements)
+    };
+  }
+  if (fixed?.path === '/tools/list') {
+    return {
+      ...fixed,
+      type: 'tools-list',
+      schemaType: 'CollectionPage',
+      bodyHtml: renderSeoToolsList(fixed)
+    };
+  }
+
+  const toolPage = SEO_TOOL_PAGES.find(page => page.path === pathname);
+  if (toolPage) {
+    return {
+      ...toolPage,
+      type: 'tool',
+      schemaType: 'WebApplication',
+      bodyHtml: renderSeoToolPage(toolPage)
+    };
+  }
+
+  const privatePage = SEO_PRIVATE_SPA_PAGES.get(pathname);
+  if (privatePage) {
+    return {
+      path: pathname,
+      ...privatePage,
+      type: 'private',
+      bodyHtml: renderSeoPrivatePage(privatePage)
+    };
+  }
+
+  const profileMatch = pathname.match(/^\/profile\/(\d+)$/);
+  if (profileMatch) {
+    try {
+      const profile = await getPublicProfile(env, profileMatch[1], null);
+      const folders = profile.folders || [];
+      const user = profile.viewer || {};
+      const title = `${SITE_DEFAULT_NAME} - ${user.displayName || '个人中心'}`;
+      const description = `${user.displayName || '用户'} 在猫猫虫咖波表情包仓库公开发布的表情包分类，共 ${folders.length} 个作品。`;
+      return {
+        path: pathname,
+        title,
+        description,
+        type: 'profile',
+        schemaType: 'ProfilePage',
+        noindex: folders.length === 0,
+        bodyHtml: renderSeoProfilePage({ title, description, user, folders }),
+        jsonLd: {
+          '@type': 'ProfilePage',
+          name: title,
+          description
+        }
+      };
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 404) return null;
+      throw error;
+    }
+  }
+
+  if (isPotentialFolderPath(pathname)) {
+    try {
+      const detail = await getSeoFolderBySlug(env, decodeURIComponent(pathname.slice(1)));
+      const folder = detail.folder;
+      const image = detail.assets.find(asset => asset.media_kind !== 'video')?.url || detail.assets[0]?.url || '';
+      const title = `${SITE_DEFAULT_NAME} - ${folder.name}`;
+      const description = trimText(folder.description || `${folder.name} 表情包资源合集，共 ${detail.assets.length} 项公开内容。`, 155);
+      return {
+        path: pathname,
+        title,
+        description,
+        image,
+        type: 'folder',
+        schemaType: 'CollectionPage',
+        bodyHtml: renderSeoFolderPage({ title, description, folder, assets: detail.assets }),
+        jsonLd: {
+          '@type': 'CollectionPage',
+          name: title,
+          description,
+          creator: folder.ownerName ? { '@type': 'Person', name: folder.ownerName } : undefined
+        }
+      };
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 404) return null;
+      throw error;
+    }
+  }
+
+  return null;
+}
+
+function normalizeSeoPath(pathname) {
+  if (pathname !== '/' && pathname.endsWith('/')) return pathname.replace(/\/+$/, '');
+  return pathname || '/';
+}
+
+function isPotentialFolderPath(pathname) {
+  if (!pathname || pathname === '/' || pathname.slice(1).includes('/')) return false;
+  if (pathname.startsWith('/api') || pathname.startsWith('/tools') || pathname.startsWith('/profile')) return false;
+  return !/\.[a-z0-9]{1,12}$/i.test(pathname);
+}
+
+function injectSeoHtml(html, seo) {
+  const title = seo.title || SITE_DEFAULT_NAME;
+  const description = trimText(seo.description || '', 180);
+  const image = seo.image ? absoluteUrl(seo.origin, seo.image) : '';
+  const robots = seo.noindex ? 'noindex, follow' : 'index, follow';
+  const jsonLd = normalizeJsonLd(seo);
+  const headTags = [
+    `<title>${escapeHtml(title)}</title>`,
+    `<meta name="description" content="${escapeHtml(description)}">`,
+    `<meta name="robots" content="${escapeHtml(robots)}">`,
+    `<link rel="canonical" href="${escapeHtml(seo.canonical)}">`,
+    `<meta property="og:site_name" content="${escapeHtml(seo.siteName || SITE_DEFAULT_NAME)}">`,
+    `<meta property="og:type" content="${seo.schemaType === 'WebSite' ? 'website' : 'article'}">`,
+    `<meta property="og:title" content="${escapeHtml(title)}">`,
+    `<meta property="og:description" content="${escapeHtml(description)}">`,
+    `<meta property="og:url" content="${escapeHtml(seo.canonical)}">`,
+    image ? `<meta property="og:image" content="${escapeHtml(image)}">` : '',
+    '<meta name="twitter:card" content="summary_large_image">',
+    `<meta name="twitter:title" content="${escapeHtml(title)}">`,
+    `<meta name="twitter:description" content="${escapeHtml(description)}">`,
+    image ? `<meta name="twitter:image" content="${escapeHtml(image)}">` : '',
+    `<script type="application/ld+json">${safeJsonLd(jsonLd)}</script>`
+  ].filter(Boolean).join('\n  ');
+  const cleanHtml = html
+    .replace(/<title>[\s\S]*?<\/title>\s*/i, '')
+    .replace(/<meta\s+name=["']description["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+name=["']robots["'][^>]*>\s*/gi, '')
+    .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:[^"']+["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>\s*/gi, '')
+    .replace(/<script\s+type=["']application\/ld\+json["'][\s\S]*?<\/script>\s*/gi, '');
+  return cleanHtml
+    .replace(/<\/head>/i, `  ${headTags}\n</head>`)
+    .replace(/<div id="app"><\/div>/i, `<div id="app">${seo.bodyHtml || ''}</div>`);
+}
+
+function normalizeJsonLd(seo) {
+  const data = {
+    '@context': 'https://schema.org',
+    '@type': seo.schemaType || 'WebPage',
+    name: seo.title,
+    description: seo.description,
+    url: seo.canonical,
+    image: seo.image ? absoluteUrl(seo.origin, seo.image) : undefined,
+    ...seo.jsonLd
+  };
+  return dropUndefined(data);
+}
+
+function dropUndefined(value) {
+  if (Array.isArray(value)) return value.map(dropUndefined);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value)
+      .filter(([, item]) => item !== undefined && item !== null && item !== '')
+      .map(([key, item]) => [key, dropUndefined(item)]));
+  }
+  return value;
+}
+
+function renderSeoHome(page, folders) {
+  const list = folders.map(folder => `<li><a href="/${encodeURIComponent(folder.slug)}">${escapeHtml(folder.name)}</a><span>${escapeHtml(folder.description || `${Number(folder.count || 0)} 项内容`)}</span></li>`).join('');
+  return `<main class="container seo-shell"><section class="site-info-hero"><div class="site-info-hero-text"><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.description)}</p></div></section><section><h2>公开表情包分类</h2><ul>${list}</ul></section></main>`;
+}
+
+function renderSeoSiteInfo(page, siteNotice, announcements) {
+  const items = announcements.slice(0, 8).map(item => `<li><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.content || '')}</span></li>`).join('');
+  return `<main class="container seo-shell"><section class="site-info-hero"><div class="site-info-hero-text"><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.description)}</p></div></section><section><h2>${escapeHtml(siteNotice?.title || '站内公告')}</h2><p>${escapeHtml(siteNotice?.content || '')}</p><ul>${items}</ul></section></main>`;
+}
+
+function renderSeoToolsList(page) {
+  const tools = [...SEO_TOOL_PAGES, ...SEO_TEST_PAGES].map(tool => `<li><a href="${escapeHtml(tool.path)}">${escapeHtml(tool.title)}</a><span>${escapeHtml(tool.description)}</span></li>`).join('');
+  return `<main class="container seo-shell"><section class="site-info-hero"><div class="site-info-hero-text"><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.description)}</p></div></section><section><h2>站内工具</h2><ul>${tools}</ul></section></main>`;
+}
+
+function renderSeoToolPage(page) {
+  return `<main class="container seo-shell"><section class="site-info-hero"><div class="site-info-hero-text"><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.description)}</p></div><a class="site-info-backlink" href="/tools/list">返回工具列表</a></section></main>`;
+}
+
+function renderSeoPrivatePage(page) {
+  return `<main class="container seo-shell"><section class="site-info-hero"><div class="site-info-hero-text"><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.description)}</p></div></section></main>`;
+}
+
+function renderSeoProfilePage({ title, description, user, folders }) {
+  const items = folders.map(folder => `<li><a href="/${encodeURIComponent(folder.slug)}">${escapeHtml(folder.name)}</a><span>${escapeHtml(folder.description || `${Number(folder.count || 0)} 项内容`)}</span></li>`).join('');
+  return `<main class="container seo-shell"><section class="site-info-hero"><div class="site-info-hero-text"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p><p>公开 ID：${escapeHtml(user.id || '')}</p></div></section><section><h2>公开作品</h2><ul>${items}</ul></section></main>`;
+}
+
+function renderSeoFolderPage({ title, description, folder, assets }) {
+  const items = assets.slice(0, 60).map(asset => `<li><a href="${escapeHtml(asset.url)}">${escapeHtml(asset.original_name || asset.id)}</a><span>${escapeHtml(asset.media_kind || asset.mime_type || 'media')}</span></li>`).join('');
+  const cover = assets[0]?.url ? `<p><a href="${escapeHtml(assets[0].url)}">查看首个公开资源</a></p>` : '';
+  return `<main class="container seo-shell"><section class="site-info-hero"><div class="site-info-hero-text"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p><p>发布者：${escapeHtml(folder.ownerName || '匿名用户')}，共 ${assets.length} 项公开内容。</p>${cover}</div></section><section><h2>资源列表</h2><ul>${items}</ul></section></main>`;
+}
+
+async function getSeoSitemapFolders(env) {
+  const rows = await env.MMC_DB.prepare(
+    `
+      SELECT slug, COALESCE(updated_at, published_at, created_at) AS lastmod
+      FROM folders
+      WHERE status = 'published'
+      ORDER BY datetime(COALESCE(updated_at, published_at, created_at)) DESC
+      LIMIT 5000
+    `
+  ).all();
+  return rows.results || [];
+}
+
+async function getSeoSitemapProfiles(env) {
+  const rows = await env.MMC_DB.prepare(
+    `
+      SELECT u.public_id, MAX(COALESCE(f.updated_at, f.published_at, f.created_at)) AS lastmod
+      FROM users u
+      JOIN folders f ON f.owner_user_id = u.id
+      WHERE u.status = 'active' AND u.public_id IS NOT NULL AND f.status = 'published'
+      GROUP BY u.public_id
+      ORDER BY datetime(lastmod) DESC
+      LIMIT 1000
+    `
+  ).all();
+  return rows.results || [];
+}
+
+async function getSeoFolderBySlug(env, slug) {
+  const folder = await env.MMC_DB.prepare(
+    `
+      SELECT f.*, u.display_name, u.public_id
+      FROM folders f
+      JOIN users u ON u.id = f.owner_user_id
+      WHERE f.slug = ? AND f.status = 'published'
+      LIMIT 1
+    `
+  ).bind(slug).first();
+
+  if (!folder) {
+    throw new HttpError(404, '这个分类暂时不存在，或者还没有通过审核。');
+  }
+
+  const assets = await env.MMC_DB.prepare(
+    `
+      SELECT id, original_name, mime_type, media_kind, created_at
+      FROM assets
+      WHERE folder_id = ? AND status = 'published'
+      ORDER BY sort_order ASC, created_at ASC
+    `
+  ).bind(folder.id).all();
+
+  return {
+    folder: {
+      id: folder.id,
+      name: folder.name,
+      slug: folder.slug,
+      description: folder.description,
+      ownerName: folder.display_name,
+      ownerPublicId: Number(folder.public_id || 0),
+      publishedAt: folder.published_at,
+      updatedAt: folder.updated_at,
+      viewCount: Number(folder.view_count || 0)
+    },
+    assets: (assets.results || []).map(asset => ({
+      ...asset,
+      url: `/media/${encodeURIComponent(asset.id)}`
+    }))
+  };
+}
+
+function getSiteOrigin(env, url) {
+  const configured = String(env.SITE_ORIGIN || '').trim().replace(/\/+$/, '');
+  if (configured && !configured.includes('your-domain.example')) return configured;
+  return url.origin.replace(/\/+$/, '');
+}
+
+function absoluteUrl(origin, path) {
+  if (!path) return origin;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function formatSitemapDate(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return new Date().toISOString();
+  return date.toISOString();
+}
+
+function textResponse(request, body, contentType, extraHeaders = {}) {
+  const headers = new Headers(extraHeaders);
+  headers.set('content-type', contentType);
+  return new Response(request.method.toUpperCase() === 'HEAD' ? null : body, { headers });
 }
 
 async function handleDownload(request, env, assetId, user) {
@@ -1885,40 +2355,14 @@ async function createFolderWithAssets(request, env, user) {
     `
   ).bind(folderId, user.id, name, slug, description, folderStatus, canPublishDirectly ? now : null, now, now).run();
 
-  let sortOrder = 0;
-  for (const file of files) {
-    validateUploadFile(file);
-    const assetId = generateId('asset');
-    const ext = getFileExtension(file.name);
-    const r2Key = `pending/${folderId}/${assetId}${ext}`;
-    await env.MMC_MEDIA.put(r2Key, file.stream(), {
-      httpMetadata: {
-        contentType: file.type || guessContentTypeFromName(file.name)
-      }
-    });
-
-    await env.MMC_DB.prepare(
-      `
-        INSERT INTO assets (
-          id, folder_id, uploader_user_id, r2_key, original_name, mime_type, media_kind,
-          size_bytes, sort_order, status, created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
-    ).bind(
-      assetId,
-      folderId,
-      user.id,
-      r2Key,
-      file.name,
-      file.type || guessContentTypeFromName(file.name),
-      detectMediaKind(file),
-      file.size,
-      sortOrder++,
-      assetStatus,
-      now
-    ).run();
-  }
+  await writeUploadedAssets(env, {
+    files,
+    folderId,
+    userId: user.id,
+    assetStatus,
+    publishedAt: canPublishDirectly ? now : null,
+    now
+  });
 
   await addReviewLog(env, folderId, user.id, canPublishDirectly ? 'approve' : 'submit', canPublishDirectly ? '管理员/站长直接发布' : '用户提交审核');
   return {
@@ -2379,7 +2823,7 @@ async function getRecentProfileActivity(env, userId) {
 }
 
 async function getProfileStats(env, userId) {
-  const [works, followers, likes, favorites] = await Promise.all([
+  const [works, followers, likes, favorites, views] = await Promise.all([
     env.MMC_DB.prepare(
       'SELECT COUNT(*) AS count FROM folders WHERE owner_user_id = ? AND status = ?'
     ).bind(userId, 'published').first(),
@@ -2401,6 +2845,13 @@ async function getProfileStats(env, userId) {
         JOIN folders f ON f.id = fav.folder_id
         WHERE f.owner_user_id = ? AND f.status = 'published'
       `
+    ).bind(userId).first(),
+    env.MMC_DB.prepare(
+      `
+        SELECT COALESCE(SUM(COALESCE(view_count, 0)), 0) AS count
+        FROM folders
+        WHERE owner_user_id = ? AND status = 'published'
+      `
     ).bind(userId).first()
   ]);
 
@@ -2408,7 +2859,8 @@ async function getProfileStats(env, userId) {
     works: Number(works?.count || 0),
     followers: Number(followers?.count || 0),
     likes: Number(likes?.count || 0),
-    favorites: Number(favorites?.count || 0)
+    favorites: Number(favorites?.count || 0),
+    views: Number(views?.count || 0)
   };
 }
 
@@ -2448,39 +2900,14 @@ async function appendAssetsToFolder(request, env, user, folderId) {
   let sortOrder = Number(sortRow?.max_sort ?? -1) + 1;
   const now = nowIso();
 
-  for (const file of files) {
-    validateUploadFile(file);
-    const assetId = generateId('asset');
-    const ext = getFileExtension(file.name);
-    const r2Key = `pending/${folderId}/${assetId}${ext}`;
-    await env.MMC_MEDIA.put(r2Key, file.stream(), {
-      httpMetadata: {
-        contentType: file.type || guessContentTypeFromName(file.name)
-      }
-    });
-
-    await env.MMC_DB.prepare(
-      `
-        INSERT INTO assets (
-          id, folder_id, uploader_user_id, r2_key, original_name, mime_type, media_kind,
-          size_bytes, sort_order, status, created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
-    ).bind(
-      assetId,
-      folderId,
-      user.id,
-      r2Key,
-      file.name,
-      file.type || guessContentTypeFromName(file.name),
-      detectMediaKind(file),
-      file.size,
-      sortOrder++,
-      folder.status === 'draft' ? 'pending' : 'rejected',
-      now
-    ).run();
-  }
+  await writeUploadedAssets(env, {
+    files,
+    folderId,
+    userId: user.id,
+    startSortOrder: sortOrder,
+    assetStatus: folder.status === 'draft' ? 'pending' : 'rejected',
+    now
+  });
 
   await env.MMC_DB.prepare('UPDATE folders SET updated_at = ? WHERE id = ?').bind(now, folderId).run();
   return {
@@ -2567,40 +2994,15 @@ async function appendAssetsToFolderAsAdmin(request, env, actor, folderId) {
   const now = nowIso();
   const { assetStatus, publishedAt } = getAssetWriteStateForFolderStatus(folder.status, now);
 
-  for (const file of files) {
-    validateUploadFile(file);
-    const assetId = generateId('asset');
-    const ext = getFileExtension(file.name);
-    const r2Key = `pending/${folderId}/${assetId}${ext}`;
-    await env.MMC_MEDIA.put(r2Key, file.stream(), {
-      httpMetadata: {
-        contentType: file.type || guessContentTypeFromName(file.name)
-      }
-    });
-
-    await env.MMC_DB.prepare(
-      `
-        INSERT INTO assets (
-          id, folder_id, uploader_user_id, r2_key, original_name, mime_type, media_kind,
-          size_bytes, sort_order, status, created_at, published_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
-    ).bind(
-      assetId,
-      folderId,
-      actor.id,
-      r2Key,
-      file.name,
-      file.type || guessContentTypeFromName(file.name),
-      detectMediaKind(file),
-      file.size,
-      sortOrder++,
-      assetStatus,
-      now,
-      publishedAt
-    ).run();
-  }
+  await writeUploadedAssets(env, {
+    files,
+    folderId,
+    userId: actor.id,
+    startSortOrder: sortOrder,
+    assetStatus,
+    publishedAt,
+    now
+  });
 
   await env.MMC_DB.prepare('UPDATE folders SET updated_at = ? WHERE id = ?').bind(now, folderId).run();
   return {
@@ -2699,6 +3101,7 @@ async function getFolderById(env, folderId, viewer = null) {
     ownerName: folder.display_name,
     ownerUsername: folder.username,
     assetCount: (assetsResult.results || []).length,
+    viewCount: Number(folder.view_count || 0),
     publicUrl: folder.status === 'published' ? `/${encodeURIComponent(folder.slug)}` : null,
     assets: (assetsResult.results || []).map(asset => ({
       ...asset,
@@ -2707,32 +3110,38 @@ async function getFolderById(env, folderId, viewer = null) {
   };
 }
 
-async function getReviewQueue(env) {
+async function getReviewQueue(env, { limit = 50 } = {}) {
   const rows = await env.MMC_DB.prepare(
     `
       SELECT f.*, u.username, u.display_name
       FROM folders f
       JOIN users u ON u.id = f.owner_user_id
-      WHERE f.status IN ('pending_review', 'rejected')
+      WHERE f.status = 'pending_review'
       ORDER BY datetime(f.updated_at) DESC
+      LIMIT ?
     `
-  ).all();
+  ).bind(Math.max(1, Math.min(100, Number.parseInt(limit, 10) || 50))).all();
 
   return Promise.all((rows.results || []).map(folder => getFolderForReview(env, folder)));
 }
 
 async function getFolderForReview(env, folder) {
-  const assets = await env.MMC_DB.prepare(
+  const [assets, countRow] = await Promise.all([
+    env.MMC_DB.prepare(
     `
-      SELECT *
+      SELECT id, original_name, mime_type, media_kind, size_bytes, sort_order, status, created_at
       FROM assets
       WHERE folder_id = ?
       ORDER BY sort_order ASC, created_at ASC
+      LIMIT 6
     `
-  ).bind(folder.id).all();
+    ).bind(folder.id).all(),
+    env.MMC_DB.prepare('SELECT COUNT(*) AS count FROM assets WHERE folder_id = ?').bind(folder.id).first()
+  ]);
 
   return {
     ...folder,
+    assetCount: Number(countRow?.count || 0),
     assets: (assets.results || []).map(asset => ({
       ...asset,
       previewUrl: `/media/${encodeURIComponent(asset.id)}`
@@ -3107,18 +3516,72 @@ function normalizeRedeemProduct(value) {
   throw new HttpError(400, '兑换码类型无效。');
 }
 
-async function getFoldersForAdmin(env, viewer) {
+async function getFoldersForAdmin(env, viewer, { limit = 50, search = '' } = {}) {
+  const safeLimit = Math.max(1, Math.min(100, Number.parseInt(limit, 10) || 50));
+  const query = String(search || '').trim().toLowerCase();
+  const where = query
+    ? `WHERE lower(f.name) LIKE ? OR lower(f.slug) LIKE ? OR lower(u.username) LIKE ? OR lower(u.display_name) LIKE ?`
+    : '';
+  const params = query ? [`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`, safeLimit] : [safeLimit];
   const rows = await env.MMC_DB.prepare(
     `
-      SELECT f.*, u.username, u.display_name
+      SELECT
+        f.id,
+        f.owner_user_id,
+        f.name,
+        f.slug,
+        f.description,
+        f.status,
+        f.review_note,
+        f.reviewed_by_user_id,
+        f.reviewed_at,
+        f.published_at,
+        f.created_at,
+        f.updated_at,
+        COALESCE(f.view_count, 0) AS view_count,
+        u.username,
+        u.display_name,
+        COUNT(a.id) AS asset_count,
+        (
+          SELECT ap.id
+          FROM assets ap
+          WHERE ap.folder_id = f.id
+          ORDER BY ap.sort_order ASC, ap.created_at ASC
+          LIMIT 1
+        ) AS cover_asset_id,
+        (
+          SELECT ap.media_kind
+          FROM assets ap
+          WHERE ap.folder_id = f.id
+          ORDER BY ap.sort_order ASC, ap.created_at ASC
+          LIMIT 1
+        ) AS cover_media_kind
       FROM folders f
       JOIN users u ON u.id = f.owner_user_id
+      LEFT JOIN assets a ON a.folder_id = f.id
+      ${where}
+      GROUP BY f.id
       ORDER BY datetime(COALESCE(f.updated_at, f.created_at)) DESC
+      LIMIT ?
     `
-  ).all();
+  ).bind(...params).all();
 
-  const folders = rows.results || [];
-  return Promise.all(folders.map(folder => getFolderById(env, folder.id, viewer)));
+  return (rows.results || []).map(folder => ({
+    ...folder,
+    ownerName: folder.display_name,
+    ownerUsername: folder.username,
+    assetCount: Number(folder.asset_count || 0),
+    viewCount: Number(folder.view_count || 0),
+    publicUrl: folder.status === 'published' ? `/${encodeURIComponent(folder.slug)}` : null,
+    assetsLoaded: false,
+    assets: folder.cover_asset_id ? [{
+      id: folder.cover_asset_id,
+      original_name: 'cover',
+      media_kind: folder.cover_media_kind || 'image',
+      status: folder.status === 'published' ? 'published' : 'pending',
+      previewUrl: `/media/${encodeURIComponent(folder.cover_asset_id)}`
+    }] : []
+  }));
 }
 
 async function changeUserRole(env, owner, targetUserId, body) {
@@ -3248,10 +3711,23 @@ async function serializePublicFolderSummary(env, folder) {
     ownerPublicId: Number(folder.public_id || 0),
     publishedAt: folder.published_at,
     updatedAt: folder.updated_at,
+    viewCount: Number(folder.view_count || 0),
     count: Number(countRow?.count || 0),
     coverUrl: asset ? `/media/${encodeURIComponent(asset.id)}` : null,
     coverMediaKind: asset?.media_kind || null
   };
+}
+
+async function incrementFolderViewCount(env, folderId) {
+  await env.MMC_DB.prepare(
+    `
+      UPDATE folders
+      SET view_count = COALESCE(view_count, 0) + 1
+      WHERE id = ?
+    `
+  ).bind(folderId).run();
+  const row = await env.MMC_DB.prepare('SELECT view_count FROM folders WHERE id = ?').bind(folderId).first();
+  return Number(row?.view_count || 0);
 }
 
 async function getPublicFolders(env, limit = 24) {
@@ -3284,6 +3760,8 @@ async function getPublicFolderBySlug(env, slug, viewer = null) {
     throw new HttpError(404, '这个分类暂时不存在，或者还没有通过审核。');
   }
 
+  const viewCount = await incrementFolderViewCount(env, folder.id);
+
   const assets = await env.MMC_DB.prepare(
     `
       SELECT id, original_name, mime_type, media_kind, size_bytes, created_at
@@ -3312,6 +3790,7 @@ async function getPublicFolderBySlug(env, slug, viewer = null) {
       likeCount: socialState.likeCount,
       isLiked: socialState.isLiked,
       commentCount: socialState.commentCount,
+      viewCount,
       followerCount: followerState.followerCount,
       isFollowingOwner: viewer ? followerState.isFollowingOwner : false
     },
@@ -3376,8 +3855,10 @@ async function upsertSoftwareRelease(env, userId, body) {
   const publishedAt = normalizeSoftwarePublishedAt(body?.publishedAt);
   const id = body?.id ? String(body.id).trim().slice(0, 80) : generateId('release');
 
-  if (downloadType !== 'quark') {
-    throw new HttpError(400, '新版本必须提供夸克网盘链接。');
+  // 支持的下载类型：quark (夸克网盘), direct (直链), apk (Android APK)
+  const allowedDownloadTypes = new Set(['quark', 'direct', 'apk']);
+  if (!allowedDownloadTypes.has(downloadType)) {
+    throw new HttpError(400, `不支持的下载类型：${downloadType}。允许的类型：quark, direct, apk`);
   }
 
   const now = nowIso();
@@ -3855,6 +4336,65 @@ function collectUploadFiles(form) {
   ];
 }
 
+async function writeUploadedAssets(env, { files, folderId, userId, startSortOrder = 0, assetStatus, publishedAt = null, now = nowIso() }) {
+  const records = files.map((file, index) => {
+    validateUploadFile(file);
+    const assetId = generateId('asset');
+    const ext = getFileExtension(file.name);
+    return {
+      id: assetId,
+      folderId,
+      userId,
+      r2Key: `pending/${folderId}/${assetId}${ext}`,
+      originalName: file.name,
+      mimeType: file.type || guessContentTypeFromName(file.name),
+      mediaKind: detectMediaKind(file),
+      sizeBytes: file.size,
+      sortOrder: startSortOrder + index,
+      status: assetStatus,
+      createdAt: now,
+      publishedAt,
+      file
+    };
+  });
+
+  for (let index = 0; index < records.length; index += UPLOAD_R2_CONCURRENCY) {
+    const batch = records.slice(index, index + UPLOAD_R2_CONCURRENCY);
+    await Promise.all(batch.map(record => env.MMC_MEDIA.put(record.r2Key, record.file.stream(), {
+      httpMetadata: {
+        contentType: record.mimeType
+      }
+    })));
+  }
+
+  if (records.length) {
+    await env.MMC_DB.batch(records.map(record => env.MMC_DB.prepare(
+      `
+        INSERT INTO assets (
+          id, folder_id, uploader_user_id, r2_key, original_name, mime_type, media_kind,
+          size_bytes, sort_order, status, created_at, published_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    ).bind(
+      record.id,
+      record.folderId,
+      record.userId,
+      record.r2Key,
+      record.originalName,
+      record.mimeType,
+      record.mediaKind,
+      record.sizeBytes,
+      record.sortOrder,
+      record.status,
+      record.createdAt,
+      record.publishedAt
+    )));
+  }
+
+  return records;
+}
+
 async function getEditableOwnedFolder(env, userId, folderId) {
   const folder = await env.MMC_DB.prepare('SELECT * FROM folders WHERE id = ?').bind(folderId).first();
   if (!folder || folder.owner_user_id !== userId) {
@@ -4195,9 +4735,33 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
-      'content-type': 'application/json; charset=utf-8'
+      'content-type': 'application/json; charset=utf-8',
+      'x-robots-tag': 'noindex'
     }
   });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function xmlEscape(value) {
+  return escapeHtml(value);
+}
+
+function safeJsonLd(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+function trimText(value, maxLength = 160) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
 function withHeaders(response, headers) {
@@ -4206,12 +4770,93 @@ function withHeaders(response, headers) {
   return new Response(response.body, { status: response.status, headers: nextHeaders });
 }
 
+function withServerTiming(response, startedAt) {
+  const headers = new Headers(response.headers);
+  headers.set('server-timing', `total;dur=${Math.round(performance.now() - startedAt)}`);
+  return new Response(response.body, { status: response.status, headers });
+}
+
 function withCors(response) {
   const headers = new Headers(response.headers);
   headers.set('access-control-allow-origin', '*');
   headers.set('access-control-allow-methods', 'GET,POST,PUT,DELETE,OPTIONS');
   headers.set('access-control-allow-headers', 'Content-Type');
   return new Response(response.body, { status: response.status, headers });
+}
+
+async function handleAndroidDownload(request, env, url) {
+  // 仅支持 GET 请求
+  if (request.method !== 'GET') {
+    return new Response('Method Not Allowed', { status: 405 });
+  }
+
+  const pathname = url.pathname;
+
+  // 路由映射：URL 路径 -> R2 对象键
+  let r2Key = null;
+  let fileName = null;
+  let contentType = 'application/octet-stream';
+
+  if (pathname === '/downloads/maomaochong-android/latest.apk') {
+    r2Key = 'downloads/android/latest.apk';
+    fileName = 'maomaochong-android-latest.apk';
+    contentType = 'application/vnd.android.package-archive';
+  } else if (pathname === '/downloads/maomaochong-android/latest.json') {
+    r2Key = 'downloads/android/latest.json';
+    fileName = 'latest.json';
+    contentType = 'application/json; charset=utf-8';
+  } else if (pathname.match(/^\/downloads\/maomaochong-android\/v[\d.]+\.apk$/)) {
+    // 匹配版本化 APK：/downloads/maomaochong-android/v1.0.0.apk
+    const version = pathname.match(/v([\d.]+)\.apk$/)[1];
+    r2Key = `downloads/android/maomaochong-android-v${version}.apk`;
+    fileName = `maomaochong-android-v${version}.apk`;
+    contentType = 'application/vnd.android.package-archive';
+  } else {
+    // 不匹配任何下载路由，返回 404
+    return new Response('Not Found', { status: 404 });
+  }
+
+  // 从 R2 获取对象
+  try {
+    const object = await env.MMC_MEDIA.get(r2Key);
+
+    if (!object) {
+      return new Response('File Not Found', { status: 404 });
+    }
+
+    // 设置响应头
+    const headers = new Headers();
+    headers.set('Content-Type', contentType);
+    headers.set('X-Content-Type-Options', 'nosniff');
+
+    // APK 文件需要设置下载
+    if (contentType === 'application/vnd.android.package-archive') {
+      headers.set('Content-Disposition', `attachment; filename="${fileName}"`);
+      headers.set('Cache-Control', 'public, max-age=3600');
+    } else {
+      // JSON 元数据缓存时间较短
+      headers.set('Cache-Control', 'public, max-age=300');
+    }
+
+    // 如果 R2 对象有自定义元数据，保留它们
+    if (object.httpMetadata?.contentType) {
+      headers.set('Content-Type', object.httpMetadata.contentType);
+    }
+    if (object.httpMetadata?.cacheControl) {
+      headers.set('Cache-Control', object.httpMetadata.cacheControl);
+    }
+
+    // 设置内容长度
+    headers.set('Content-Length', object.size.toString());
+
+    return new Response(object.body, {
+      status: 200,
+      headers
+    });
+  } catch (error) {
+    console.error('Android download error:', error);
+    return new Response('Internal Server Error', { status: 500 });
+  }
 }
 
 class HttpError extends Error {
