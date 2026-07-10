@@ -6945,6 +6945,25 @@ select:focus-visible,
     background: color-mix(in srgb, var(--surface) 86%, var(--primary-color) 7%);
 }
 
+.detail-promote-btn {
+    min-height: 44px;
+    border-color: rgba(8, 145, 178, 0.28);
+    color: #036879;
+    background: rgba(8, 145, 178, 0.08);
+}
+
+.detail-promote-btn:hover {
+    border-color: rgba(8, 145, 178, 0.45);
+    color: #04515f;
+    background: rgba(8, 145, 178, 0.14);
+}
+
+.detail-promote-btn:disabled {
+    cursor: wait;
+    opacity: 0.72;
+    transform: none;
+}
+
 .danger-btn,
 .admin-asset-delete-btn {
     border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
@@ -7293,6 +7312,18 @@ body.dark-mode .link-match-select select {
     color: var(--text-main);
     border-color: var(--border-soft);
     background: color-mix(in srgb, var(--surface) 88%, #000);
+}
+
+body.dark-mode .detail-promote-btn {
+    color: #8ee8f7;
+    border-color: rgba(34, 211, 238, 0.28);
+    background: rgba(34, 211, 238, 0.1);
+}
+
+body.dark-mode .detail-promote-btn:hover {
+    color: #cffafe;
+    border-color: rgba(34, 211, 238, 0.44);
+    background: rgba(34, 211, 238, 0.16);
 }
 
 body.dark-mode .admin-form input[type="file"],

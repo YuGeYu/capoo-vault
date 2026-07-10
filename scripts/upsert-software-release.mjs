@@ -166,9 +166,13 @@ try {
   await writeFile(sqlFile, sql, 'utf8');
   const command = process.execPath;
   const wranglerEntry = join(process.cwd(), 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+  const wranglerArgs = ['d1', 'execute', 'MMC_DB', options.remote ? '--remote' : '--local', `--file=${sqlFile}`];
+  if (options.remote) {
+    wranglerArgs.push('-c', 'wrangler.production.toml');
+  }
   const result = spawnSync(
     command,
-    [wranglerEntry, 'd1', 'execute', 'MMC_DB', options.remote ? '--remote' : '--local', `--file=${sqlFile}`],
+    [wranglerEntry, ...wranglerArgs],
     { cwd: process.cwd(), stdio: 'inherit' }
   );
   if (result.error) {

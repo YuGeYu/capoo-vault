@@ -1645,11 +1645,7 @@ export function dismissHomeRecommendationsForToday() {
 }
 
 export const renderHomePage = function () {
-  const layout = state.homeLayout || 'classic';
-  if (layout === 'beta') {
-    return renderBetaHomePage();
-  }
-  return renderClassicHomePage();
+  return renderBetaHomePage();
 };
 
 const renderClassicHomePage = function () {
@@ -1696,9 +1692,6 @@ const renderClassicHomePage = function () {
           </select>
         </div>
         ${homeSearchSummary(totalFolders, folders.length)}
-      </section>
-      <section class="beta-switch-hint">
-        <button class="copy-btn" type="button" data-switch-to-beta>尝试新版首页内测 <i class="fas fa-flask"></i></button>
       </section>
       <section class="categories" id="home-categories">${folders.length ? folders.map(folderCard).join('') : homeEmptyState()}</section>
       ${showIntro ? '<section class="intro home-intro-panel"><p>按分类找表情包，点击卡片即可预览内容；完整规则请看 <a href="/site-info" data-link>站务说明</a>。</p></section>' : ''}
@@ -1873,6 +1866,13 @@ export function renderFolderPage({ preserveScroll = false } = {}) {
   const pageShareUrl = pageShareUrlObject.toString();
   const qqShareUrl = `https://connect.qq.com/widget/shareqq/index.html?url=${encodeURIComponent(pageShareUrl)}&title=${encodeURIComponent(folder.name)}`;
   const commentCount = Number(folder.commentCount || comments.length || 0);
+  const viewer = state.bootstrap?.viewer;
+  const canPromoteViews = viewer?.role === 'owner';
+  const promoteLabel = folder.viewBoost?.status === 'active'
+    ? '站长推中'
+    : folder.viewBoost
+      ? '再次站长推'
+      : '站长推';
   const previewAsset = assets.find(asset => asset.media_kind !== 'video') || assets[0];
   setPageMeta({
     title: folder.name,
@@ -1902,6 +1902,7 @@ export function renderFolderPage({ preserveScroll = false } = {}) {
             <button class="copy-btn detail-social-btn" type="button" data-like-folder="${folder.id}" data-liked="${folder.isLiked ? 'true' : 'false'}"><i class="${folder.isLiked ? 'fas' : 'far'} fa-heart"></i> ${folder.isLiked ? '已点赞' : '点赞'} ${Number(folder.likeCount || 0)}</button>
             <button class="copy-btn detail-social-btn" type="button" data-scroll-comments><i class="far fa-comment"></i> 评论 ${commentCount}</button>
             <span class="copy-btn detail-social-btn detail-view-count" aria-label="浏览量"><i class="fas fa-eye"></i> 浏览 ${Number(folder.viewCount || 0)}</span>
+            ${canPromoteViews ? `<button class="copy-btn detail-social-btn detail-promote-btn" type="button" data-promote-folder-view="${folder.id}" title="让展示播放量逐步升到全站靠前"><i class="fas fa-chart-line"></i> ${promoteLabel}</button>` : ''}
             <div class="detail-share-wrap">
               <button class="modal-share-btn detail-share-toggle" type="button" data-toggle-page-share><i class="fas fa-share-nodes"></i> \u5206\u4eab</button>
               ${renderPageSharePanel(pageShareUrl, qqShareUrl)}

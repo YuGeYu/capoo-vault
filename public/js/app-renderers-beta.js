@@ -27,8 +27,6 @@ export function renderBetaHomePage() {
 
   // 推荐分组
   const featuredFolder = allFolders[0];
-  const latestFolders = [...allFolders].slice(0, 12);
-  const popularFolders = [...allFolders].sort((a, b) => Number(b.viewCount || 0) - Number(a.viewCount || 0)).slice(0, 8);
 
   const betaNav = `
     <nav class="beta-home-nav">
@@ -42,7 +40,8 @@ export function renderBetaHomePage() {
           <a href="/tools/list" data-link class="beta-nav-link">工具</a>
           <a href="/site-info" data-link class="beta-nav-link">公告</a>
           <a href="/app" data-link class="beta-nav-link">APP</a>
-          ${viewer ? `<a href="/profile/${viewer.publicId || ''}" data-link class="beta-nav-link">个人中心</a>` : ''}
+          <a href="/dashboard" data-link class="beta-nav-link">后台</a>
+          <a href="${viewer ? `/profile/${viewer.publicId || ''}` : '/profile'}" data-link class="beta-nav-link">个人中心</a>
         </div>
       </div>
       <div class="beta-nav-center">
@@ -63,9 +62,6 @@ export function renderBetaHomePage() {
         ` : `
           <a href="/profile" data-link class="beta-nav-login-btn">登录</a>
         `}
-        <button class="beta-nav-icon-btn" data-switch-to-classic title="返回旧版">
-          <i class="fas fa-rotate-left"></i>
-        </button>
       </div>
     </nav>
   `;
@@ -73,6 +69,7 @@ export function renderBetaHomePage() {
   const betaBanner = `
     <section class="beta-home-banner">
       <div class="beta-banner-content">
+        <span class="beta-banner-kicker"><i class="fas fa-circle"></i> 新版主页已上线</span>
         <h2>欢迎来到猫猫虫咖波表情包仓库</h2>
         <p>收集并分享可爱的猫猫虫咖波图片、表情包和视频内容</p>
         <div class="beta-banner-stats">
@@ -85,27 +82,27 @@ export function renderBetaHomePage() {
 
   const betaChannels = `
     <section class="beta-home-channels">
-      <div class="beta-channel-item ${currentChannel === 'recommend' ? 'active' : ''}" data-beta-channel="recommend">
+      <button type="button" class="beta-channel-item ${currentChannel === 'recommend' ? 'active' : ''}" data-beta-channel="recommend">
         <i class="fas fa-star"></i>
         <span>推荐</span>
-      </div>
-      <div class="beta-channel-item ${currentChannel === 'latest' ? 'active' : ''}" data-beta-channel="latest">
+      </button>
+      <button type="button" class="beta-channel-item ${currentChannel === 'latest' ? 'active' : ''}" data-beta-channel="latest">
         <i class="fas fa-clock"></i>
         <span>最新</span>
-      </div>
-      <div class="beta-channel-item ${currentChannel === 'popular' ? 'active' : ''}" data-beta-channel="popular">
+      </button>
+      <button type="button" class="beta-channel-item ${currentChannel === 'popular' ? 'active' : ''}" data-beta-channel="popular">
         <i class="fas fa-fire"></i>
         <span>热门</span>
-      </div>
-      <div class="beta-channel-item ${currentChannel === 'tools' ? 'active' : ''}" data-beta-channel="tools">
+      </button>
+      <button type="button" class="beta-channel-item ${currentChannel === 'tools' ? 'active' : ''}" data-beta-channel="tools">
         <i class="fas fa-wrench"></i>
         <span>工具</span>
-      </div>
+      </button>
       ${viewer ? `
-        <div class="beta-channel-item" data-beta-channel="dashboard">
+        <a href="/dashboard" data-link class="beta-channel-item beta-dashboard-entry">
           <i class="fas fa-gauge"></i>
           <span>后台</span>
-        </div>
+        </a>
       ` : ''}
     </section>
   `;
@@ -196,10 +193,6 @@ export function renderBetaHomePage() {
     <footer class="beta-home-footer">
       <div class="beta-footer-content">
         <p>© 2024-2026 猫猫虫咖波表情包仓库 · <a href="/site-info" data-link>站务说明</a> · <a href="/app" data-link>安卓APP</a></p>
-        <p class="beta-footer-hint">
-          <i class="fas fa-flask"></i> 您正在使用新版首页内测 ·
-          <button class="beta-footer-link" data-switch-to-classic>返回旧版</button>
-        </p>
       </div>
     </footer>
   `;
@@ -240,16 +233,9 @@ export function renderBetaHomePage() {
   document.querySelectorAll('[data-beta-channel]').forEach(btn => {
     btn.onclick = () => {
       const channel = btn.dataset.betaChannel;
-      if (channel === 'dashboard') {
-        // 跳转后台
-        window.history.pushState({}, '', '/dashboard');
-        const route = window.route || (() => {});
-        route();
-      } else {
-        state.betaChannel = channel;
-        renderBetaHomePage();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+      state.betaChannel = channel;
+      renderBetaHomePage();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     };
   });
 }

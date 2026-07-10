@@ -383,6 +383,12 @@ async function handleApi(request, env, url) {
     return json({ folder: await getFolderById(env, adminFolderDetailMatch[1], session.user) });
   }
 
+  const adminFolderViewBoostMatch = pathname.match(/^\/api\/admin\/folders\/([^/]+)\/view-boost$/);
+  if (adminFolderViewBoostMatch && method === 'POST') {
+    const session = await requireRole(request, env, ['owner']);
+    return json(await promoteFolderViewBoost(env, session.user, decodeURIComponent(adminFolderViewBoostMatch[1])));
+  }
+
   if (pathname === '/api/admin/announcements' && method === 'GET') {
     await requireRole(request, env, ['admin', 'owner']);
     return json({ announcements: await getAnnouncements(env, false) });
@@ -428,7 +434,7 @@ async function handleApi(request, env, url) {
     const key = String(url.searchParams.get('key') || '').trim();
     const contentType = String(url.searchParams.get('contentType') || 'application/octet-stream').trim();
     if (!key) {
-      throw new HttpError(400, '缂哄皯瀵煎叆 key銆?');
+      throw new HttpError(400, '缺少导入 key。');
     }
     await env.MMC_MEDIA.put(key, request.body, {
       httpMetadata: { contentType }
@@ -440,7 +446,7 @@ async function handleApi(request, env, url) {
     requireImportToken(request, env);
     const slug = String(url.searchParams.get('slug') || '').trim();
     if (!slug) {
-      throw new HttpError(400, '缂哄皯 slug銆?');
+      throw new HttpError(400, '缺少 slug。');
     }
     const existing = await env.MMC_DB.prepare('SELECT id, slug FROM folders WHERE slug = ? LIMIT 1').bind(slug).first();
     return json({ ok: true, exists: Boolean(existing), folder: existing || null });
@@ -543,7 +549,7 @@ async function handleApi(request, env, url) {
     return json({ folders: await getPublicFolders(env) });
   }
 
-  return json({ error: '鎺ュ彛涓嶅瓨鍦ㄣ€?' }, 404);
+  return json({ error: '接口不存在。' }, 404);
 }
 
 async function handleMedia(request, env, url) {
@@ -921,6 +927,94 @@ async function getSeoSitemapProfiles(env) {
   return rows.results || [];
 }
 
+function hashString(value) {
+  let hash = 2166136261;
+  const text = String(value || '');
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function folderHash(folder) {
+  return hashString(`${folder?.id || ''}:${folder?.slug || ''}:${folder?.name || ''}`);
+}
+
+function organicDisplayViewCount(folder) {
+  const real = Math.max(0, Number(folder?.view_count || folder?.realViewCount || 0));
+  const suffix = folderHash(folder) % 9 + 1;
+  return real * 10 + 10 + suffix;
+}
+
+function boostRatePerHour(folder) {
+  return 8 + (folderHash(folder) % 11);
+}
+
+function boostTargetOffset(folder) {
+  return 17 + (folderHash(folder) % 27);
+}
+
+function getBoostDisplayViewCount(boost, at = new Date()) {
+  if (!boost) return 0;
+  const base = Number(boost.base_display_view_count || 0);
+  const target = Number(boost.target_display_view_count || 0);
+  const rate = Math.max(1, Number(boost.rate_per_hour || 12));
+  const started = boost.started_at ? new Date(boost.started_at) : at;
+  const elapsedHours = Math.max(0, (at.getTime() - started.getTime()) / 3600000);
+  return Math.min(target, base + Math.floor(elapsedHours * rate));
+}
+
+function getFolderDisplayViewData(folder, boost = null, at = new Date()) {
+  const realViewCount = Math.max(0, Number(folder?.view_count || 0));
+  const organic = organicDisplayViewCount({ ...folder, view_count: realViewCount });
+  const boosted = getBoostDisplayViewCount(boost, at);
+  const viewCount = Math.max(organic, boosted);
+  const targetDisplayViewCount = Number(boost?.target_display_view_count || 0);
+  return {
+    realViewCount,
+    viewCount,
+    viewBoost: boost ? {
+      status: viewCount >= targetDisplayViewCount ? 'completed' : 'active',
+      startedAt: boost.started_at,
+      baseRealViewCount: Number(boost.base_real_view_count || 0),
+      baseDisplayViewCount: Number(boost.base_display_view_count || 0),
+      targetDisplayViewCount,
+      ratePerHour: Number(boost.rate_per_hour || 0)
+    } : null
+  };
+}
+
+function canSeeRealViewCount(viewer) {
+  return viewer?.role === 'owner';
+}
+
+async function getFolderViewBoosts(env, folderIds) {
+  const ids = [...new Set((folderIds || []).filter(Boolean))];
+  const boosts = new Map();
+  if (!ids.length) return boosts;
+  try {
+    for (let i = 0; i < ids.length; i += 50) {
+      const chunk = ids.slice(i, i + 50);
+      const placeholders = chunk.map(() => '?').join(',');
+      const rows = await env.MMC_DB.prepare(
+        `SELECT * FROM folder_view_boosts WHERE folder_id IN (${placeholders})`
+      ).bind(...chunk).all();
+      for (const boost of rows.results || []) {
+        boosts.set(boost.folder_id, boost);
+      }
+    }
+  } catch (error) {
+    if (!String(error?.message || '').toLowerCase().includes('no such table: folder_view_boosts')) throw error;
+  }
+  return boosts;
+}
+
+async function getFolderViewBoost(env, folderId) {
+  const boosts = await getFolderViewBoosts(env, [folderId]);
+  return boosts.get(folderId) || null;
+}
+
 async function getSeoFolderBySlug(env, slug) {
   const folder = await env.MMC_DB.prepare(
     `
@@ -935,6 +1029,7 @@ async function getSeoFolderBySlug(env, slug) {
   if (!folder) {
     throw new HttpError(404, '这个分类暂时不存在，或者还没有通过审核。');
   }
+  const displayViews = getFolderDisplayViewData(folder, await getFolderViewBoost(env, folder.id));
 
   const assets = await env.MMC_DB.prepare(
     `
@@ -955,7 +1050,7 @@ async function getSeoFolderBySlug(env, slug) {
       ownerPublicId: Number(folder.public_id || 0),
       publishedAt: folder.published_at,
       updatedAt: folder.updated_at,
-      viewCount: Number(folder.view_count || 0)
+      viewCount: displayViews.viewCount
     },
     assets: (assets.results || []).map(asset => ({
       ...asset,
@@ -995,7 +1090,7 @@ async function handleDownload(request, env, assetId, user) {
   }
 
   if (!canAccessAsset(asset, user)) {
-    throw new HttpError(403, '浣犳病鏈夋潈闄愪笅杞借繖涓祫婧愩€?');
+    throw new HttpError(403, '你没有权限下载这个资源。');
   }
 
   const object = await env.MMC_MEDIA.get(asset.r2_key);
@@ -2478,7 +2573,7 @@ async function getPublishedFoldersForProfile(env, userId) {
       ORDER BY datetime(COALESCE(f.updated_at, f.published_at, f.created_at)) DESC
     `
   ).bind(userId).all();
-  return Promise.all((rows.results || []).map(folder => serializePublicFolderSummary(env, folder)));
+  return serializePublicFolderSummaries(env, rows.results || []);
 }
 
 async function getFavoriteFolders(env, userId) {
@@ -2492,7 +2587,7 @@ async function getFavoriteFolders(env, userId) {
       ORDER BY datetime(fav.created_at) DESC
     `
   ).bind(userId).all();
-  return Promise.all((rows.results || []).map(folder => serializePublicFolderSummary(env, folder)));
+  return serializePublicFolderSummaries(env, rows.results || []);
 }
 
 async function addFavoriteFolder(env, userId, folderId) {
@@ -2823,7 +2918,7 @@ async function getRecentProfileActivity(env, userId) {
 }
 
 async function getProfileStats(env, userId) {
-  const [works, followers, likes, favorites, views] = await Promise.all([
+  const [works, followers, likes, favorites, viewFolders] = await Promise.all([
     env.MMC_DB.prepare(
       'SELECT COUNT(*) AS count FROM folders WHERE owner_user_id = ? AND status = ?'
     ).bind(userId, 'published').first(),
@@ -2848,19 +2943,22 @@ async function getProfileStats(env, userId) {
     ).bind(userId).first(),
     env.MMC_DB.prepare(
       `
-        SELECT COALESCE(SUM(COALESCE(view_count, 0)), 0) AS count
+        SELECT id, slug, name, COALESCE(view_count, 0) AS view_count
         FROM folders
         WHERE owner_user_id = ? AND status = 'published'
       `
-    ).bind(userId).first()
+    ).bind(userId).all()
   ]);
+  const viewRows = viewFolders.results || [];
+  const boosts = await getFolderViewBoosts(env, viewRows.map(folder => folder.id));
+  const views = viewRows.reduce((sum, folder) => sum + getFolderDisplayViewData(folder, boosts.get(folder.id)).viewCount, 0);
 
   return {
     works: Number(works?.count || 0),
     followers: Number(followers?.count || 0),
     likes: Number(likes?.count || 0),
     favorites: Number(favorites?.count || 0),
-    views: Number(views?.count || 0)
+    views
   };
 }
 
@@ -3095,19 +3193,25 @@ async function getFolderById(env, folderId, viewer = null) {
       ORDER BY sort_order ASC, created_at ASC
     `
   ).bind(folderId).all();
+  const displayViews = getFolderDisplayViewData(folder, await getFolderViewBoost(env, folder.id));
 
-  return {
+  const serialized = {
     ...folder,
     ownerName: folder.display_name,
     ownerUsername: folder.username,
     assetCount: (assetsResult.results || []).length,
-    viewCount: Number(folder.view_count || 0),
+    viewCount: displayViews.viewCount,
     publicUrl: folder.status === 'published' ? `/${encodeURIComponent(folder.slug)}` : null,
     assets: (assetsResult.results || []).map(asset => ({
       ...asset,
       previewUrl: canPreviewAsset(asset, folder, viewer) ? `/media/${encodeURIComponent(asset.id)}` : null
     }))
   };
+  if (canSeeRealViewCount(viewer)) {
+    serialized.realViewCount = displayViews.realViewCount;
+    serialized.viewBoost = displayViews.viewBoost;
+  }
+  return serialized;
 }
 
 async function getReviewQueue(env, { limit = 50 } = {}) {
@@ -3173,7 +3277,7 @@ async function reviewFolder(env, reviewer, folderId, body) {
     nextStatus = 'offline';
     assetStatus = 'rejected';
   } else {
-    throw new HttpError(400, '瀹℃牳鍔ㄤ綔鏃犳晥銆?');
+    throw new HttpError(400, '审核动作无效。');
   }
 
   const reviewedAt = nowIso();
@@ -3566,22 +3670,32 @@ async function getFoldersForAdmin(env, viewer, { limit = 50, search = '' } = {})
     `
   ).bind(...params).all();
 
-  return (rows.results || []).map(folder => ({
-    ...folder,
-    ownerName: folder.display_name,
-    ownerUsername: folder.username,
-    assetCount: Number(folder.asset_count || 0),
-    viewCount: Number(folder.view_count || 0),
-    publicUrl: folder.status === 'published' ? `/${encodeURIComponent(folder.slug)}` : null,
-    assetsLoaded: false,
-    assets: folder.cover_asset_id ? [{
-      id: folder.cover_asset_id,
-      original_name: 'cover',
-      media_kind: folder.cover_media_kind || 'image',
-      status: folder.status === 'published' ? 'published' : 'pending',
-      previewUrl: `/media/${encodeURIComponent(folder.cover_asset_id)}`
-    }] : []
-  }));
+  const folders = rows.results || [];
+  const boosts = await getFolderViewBoosts(env, folders.map(folder => folder.id));
+  return folders.map(folder => {
+    const displayViews = getFolderDisplayViewData(folder, boosts.get(folder.id));
+    const serialized = {
+      ...folder,
+      ownerName: folder.display_name,
+      ownerUsername: folder.username,
+      assetCount: Number(folder.asset_count || 0),
+      viewCount: displayViews.viewCount,
+      publicUrl: folder.status === 'published' ? `/${encodeURIComponent(folder.slug)}` : null,
+      assetsLoaded: false,
+      assets: folder.cover_asset_id ? [{
+        id: folder.cover_asset_id,
+        original_name: 'cover',
+        media_kind: folder.cover_media_kind || 'image',
+        status: folder.status === 'published' ? 'published' : 'pending',
+        previewUrl: `/media/${encodeURIComponent(folder.cover_asset_id)}`
+      }] : []
+    };
+    if (canSeeRealViewCount(viewer)) {
+      serialized.realViewCount = displayViews.realViewCount;
+      serialized.viewBoost = displayViews.viewBoost;
+    }
+    return serialized;
+  });
 }
 
 async function changeUserRole(env, owner, targetUserId, body) {
@@ -3595,7 +3709,7 @@ async function changeUserRole(env, owner, targetUserId, body) {
     throw new HttpError(404, '用户不存在。');
   }
   if (target.role === 'owner') {
-    throw new HttpError(400, '涓嶈兘鏀瑰姩绔欓暱璐﹀彿銆?');
+    throw new HttpError(400, '不能改动站长账号。');
   }
 
   await env.MMC_DB.prepare(
@@ -3686,20 +3800,8 @@ function normalizeManagedFolderStatus(value) {
   return text;
 }
 
-async function serializePublicFolderSummary(env, folder) {
-  const asset = await env.MMC_DB.prepare(
-    `
-      SELECT id, media_kind
-      FROM assets
-      WHERE folder_id = ? AND status = 'published'
-      ORDER BY sort_order ASC, created_at ASC
-      LIMIT 1
-    `
-  ).bind(folder.id).first();
-
-  const countRow = await env.MMC_DB.prepare(
-    'SELECT COUNT(*) AS count FROM assets WHERE folder_id = ? AND status = ?'
-  ).bind(folder.id, 'published').first();
+function serializePublicFolderSummary(folder, assetSummary, boost) {
+  const displayViews = getFolderDisplayViewData(folder, boost);
 
   return {
     id: folder.id,
@@ -3711,11 +3813,58 @@ async function serializePublicFolderSummary(env, folder) {
     ownerPublicId: Number(folder.public_id || 0),
     publishedAt: folder.published_at,
     updatedAt: folder.updated_at,
-    viewCount: Number(folder.view_count || 0),
-    count: Number(countRow?.count || 0),
-    coverUrl: asset ? `/media/${encodeURIComponent(asset.id)}` : null,
-    coverMediaKind: asset?.media_kind || null
+    viewCount: displayViews.viewCount,
+    count: Number(assetSummary?.asset_count || 0),
+    coverUrl: assetSummary?.cover_id ? `/media/${encodeURIComponent(assetSummary.cover_id)}` : null,
+    coverMediaKind: assetSummary?.cover_media_kind || null
   };
+}
+
+async function serializePublicFolderSummaries(env, folders) {
+  const summaries = new Map();
+  const boosts = new Map();
+
+  for (let i = 0; i < folders.length; i += 50) {
+    const chunk = folders.slice(i, i + 50);
+    const ids = chunk.map(folder => folder.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const [assetRows, chunkBoosts] = await Promise.all([
+      env.MMC_DB.prepare(
+        `
+          WITH ranked_assets AS (
+            SELECT
+              folder_id,
+              id,
+              media_kind,
+              COUNT(*) OVER (PARTITION BY folder_id) AS asset_count,
+              ROW_NUMBER() OVER (
+                PARTITION BY folder_id
+                ORDER BY sort_order ASC, created_at ASC
+              ) AS cover_rank
+            FROM assets
+            WHERE status = 'published' AND folder_id IN (${placeholders})
+          )
+          SELECT
+            folder_id,
+            asset_count,
+            id AS cover_id,
+            media_kind AS cover_media_kind
+          FROM ranked_assets
+          WHERE cover_rank = 1
+        `
+      ).bind(...ids).all(),
+      getFolderViewBoosts(env, ids)
+    ]);
+
+    for (const row of assetRows.results || []) summaries.set(row.folder_id, row);
+    for (const [folderId, boost] of chunkBoosts) boosts.set(folderId, boost);
+  }
+
+  return folders.map(folder => serializePublicFolderSummary(
+    folder,
+    summaries.get(folder.id),
+    boosts.get(folder.id)
+  ));
 }
 
 async function incrementFolderViewCount(env, folderId) {
@@ -3728,6 +3877,79 @@ async function incrementFolderViewCount(env, folderId) {
   ).bind(folderId).run();
   const row = await env.MMC_DB.prepare('SELECT view_count FROM folders WHERE id = ?').bind(folderId).first();
   return Number(row?.view_count || 0);
+}
+
+async function promoteFolderViewBoost(env, owner, folderId) {
+  const folder = await env.MMC_DB.prepare(
+    `
+      SELECT f.*, u.display_name, u.public_id
+      FROM folders f
+      JOIN users u ON u.id = f.owner_user_id
+      WHERE f.id = ? AND f.status = 'published'
+      LIMIT 1
+    `
+  ).bind(folderId).first();
+  if (!folder) throw new HttpError(404, '找不到可以站长推的公开作品。');
+
+  const allFoldersResult = await env.MMC_DB.prepare(
+    `
+      SELECT id, slug, name, COALESCE(view_count, 0) AS view_count
+      FROM folders
+      WHERE status = 'published'
+      LIMIT 5000
+    `
+  ).all();
+  const allFolders = allFoldersResult.results || [];
+  const boosts = await getFolderViewBoosts(env, allFolders.map(item => item.id));
+  const currentData = getFolderDisplayViewData(folder, boosts.get(folder.id));
+  const otherMax = allFolders.reduce((max, item) => {
+    if (item.id === folder.id) return max;
+    return Math.max(max, getFolderDisplayViewData(item, boosts.get(item.id)).viewCount);
+  }, 0);
+  const targetDisplayViewCount = Math.max(
+    currentData.viewCount + 1,
+    otherMax + boostTargetOffset(folder)
+  );
+  const now = nowIso();
+  const ratePerHour = boostRatePerHour(folder);
+
+  await env.MMC_DB.prepare(
+    `
+      INSERT INTO folder_view_boosts (
+        folder_id, status, started_at, base_real_view_count, base_display_view_count,
+        target_display_view_count, rate_per_hour, created_by_user_id, updated_at
+      )
+      VALUES (?, 'active', ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(folder_id) DO UPDATE SET
+        status = 'active',
+        started_at = excluded.started_at,
+        base_real_view_count = excluded.base_real_view_count,
+        base_display_view_count = excluded.base_display_view_count,
+        target_display_view_count = excluded.target_display_view_count,
+        rate_per_hour = excluded.rate_per_hour,
+        created_by_user_id = excluded.created_by_user_id,
+        updated_at = excluded.updated_at
+    `
+  ).bind(
+    folder.id,
+    now,
+    currentData.realViewCount,
+    currentData.viewCount,
+    targetDisplayViewCount,
+    ratePerHour,
+    owner.id,
+    now
+  ).run();
+
+  const boost = await getFolderViewBoost(env, folder.id);
+  const displayViews = getFolderDisplayViewData(folder, boost);
+  return {
+    ok: true,
+    folderId: folder.id,
+    viewCount: displayViews.viewCount,
+    realViewCount: displayViews.realViewCount,
+    boost: displayViews.viewBoost
+  };
 }
 
 async function getPublicFolders(env, limit = 24) {
@@ -3743,7 +3965,7 @@ async function getPublicFolders(env, limit = 24) {
   ).bind(limit).all();
 
   const folders = rows.results || [];
-  return Promise.all(folders.map(folder => serializePublicFolderSummary(env, folder)));
+  return serializePublicFolderSummaries(env, folders);
 }
 
 async function getPublicFolderBySlug(env, slug, viewer = null) {
@@ -3760,7 +3982,9 @@ async function getPublicFolderBySlug(env, slug, viewer = null) {
     throw new HttpError(404, '这个分类暂时不存在，或者还没有通过审核。');
   }
 
-  const viewCount = await incrementFolderViewCount(env, folder.id);
+  const realViewCount = await incrementFolderViewCount(env, folder.id);
+  const countedFolder = { ...folder, view_count: realViewCount };
+  const displayViews = getFolderDisplayViewData(countedFolder, await getFolderViewBoost(env, folder.id));
 
   const assets = await env.MMC_DB.prepare(
     `
@@ -3777,23 +4001,29 @@ async function getPublicFolderBySlug(env, slug, viewer = null) {
     getFolderComments(env, folder.id, viewer)
   ]);
 
+  const serializedFolder = {
+    id: folder.id,
+    name: folder.name,
+    slug: folder.slug,
+    description: folder.description,
+    ownerName: folder.display_name,
+    ownerPublicId: Number(folder.public_id || 0),
+    isFavorited: viewer ? await isFolderFavorited(env, viewer.id, folder.id) : false,
+    publishedAt: folder.published_at,
+    likeCount: socialState.likeCount,
+    isLiked: socialState.isLiked,
+    commentCount: socialState.commentCount,
+    viewCount: displayViews.viewCount,
+    followerCount: followerState.followerCount,
+    isFollowingOwner: viewer ? followerState.isFollowingOwner : false
+  };
+  if (canSeeRealViewCount(viewer)) {
+    serializedFolder.realViewCount = displayViews.realViewCount;
+    serializedFolder.viewBoost = displayViews.viewBoost;
+  }
+
   return {
-    folder: {
-      id: folder.id,
-      name: folder.name,
-      slug: folder.slug,
-      description: folder.description,
-      ownerName: folder.display_name,
-      ownerPublicId: Number(folder.public_id || 0),
-      isFavorited: viewer ? await isFolderFavorited(env, viewer.id, folder.id) : false,
-      publishedAt: folder.published_at,
-      likeCount: socialState.likeCount,
-      isLiked: socialState.isLiked,
-      commentCount: socialState.commentCount,
-      viewCount,
-      followerCount: followerState.followerCount,
-      isFollowingOwner: viewer ? followerState.isFollowingOwner : false
-    },
+    folder: serializedFolder,
     assets: (assets.results || []).map(asset => ({
       ...asset,
       url: `/media/${encodeURIComponent(asset.id)}`
@@ -4118,10 +4348,10 @@ async function importLegacyFolder(env, body) {
   const folder = body?.folder;
   const assets = Array.isArray(body?.assets) ? body.assets : [];
   if (!folder?.id || !folder?.ownerUserId || !folder?.name || !folder?.slug) {
-    throw new HttpError(400, '瀵煎叆 folder 鏁版嵁涓嶅畬鏁淬€?');
+    throw new HttpError(400, '导入 folder 数据不完整。');
   }
   if (!assets.length) {
-    throw new HttpError(400, '瀵煎叆鏃惰嚦灏戦渶瑕佷竴涓祫婧愩€?');
+    throw new HttpError(400, '导入时至少需要一个资源。');
   }
 
   const existing = await env.MMC_DB.prepare('SELECT id FROM folders WHERE slug = ?').bind(folder.slug).first();
@@ -4236,7 +4466,7 @@ async function requireSession(request, env) {
 async function requireRole(request, env, roles) {
   const session = await requireSession(request, env);
   if (!roles.includes(session.user.role)) {
-    throw new HttpError(403, '浣犵殑鏉冮檺涓嶈冻銆?');
+    throw new HttpError(403, '你的权限不足。');
   }
   return session;
 }
@@ -4473,7 +4703,7 @@ function getBearerToken(request) {
 function requireImportToken(request, env) {
   const headerToken = request.headers.get('x-import-token');
   if (!env.IMPORT_TOKEN || !headerToken || headerToken !== env.IMPORT_TOKEN) {
-    throw new HttpError(403, '瀵煎叆浠ょ墝鏃犳晥銆?');
+    throw new HttpError(403, '导入令牌无效。');
   }
 }
 

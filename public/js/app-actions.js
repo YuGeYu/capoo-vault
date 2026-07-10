@@ -1,4 +1,4 @@
-﻿import { state, api, toast, copyText, shareCurrentPage, applyTheme, normalize, findAdminFolderById, confirmDangerAction, closeConfirmDialog, getDeleteConfirmationOptions, getReviewConfirmationOptions, getAdminFolderSaveConfirmationOptions, isAdmin, isOwner, setHomeLayoutPreference } from './app-support.js';
+﻿import { state, api, toast, copyText, shareCurrentPage, applyTheme, normalize, findAdminFolderById, confirmDangerAction, closeConfirmDialog, getDeleteConfirmationOptions, getReviewConfirmationOptions, getAdminFolderSaveConfirmationOptions, isAdmin, isOwner } from './app-support.js';
 
 import { renderHomePage, renderSiteInfoPage, renderAndroidAppPage, renderRemoveBgPage, renderAiChatPage, renderAiApiPage, renderMusicPage, renderInspirationPage, renderLinkMatchPage, renderToolsListPage, renderDashboardPage, renderAuthPage, renderMessagePage, renderFolderPage, renderProfileEntryPage, renderProfilePage, openPreview, previewPrevious, previewNext, closeModal, restoreHomePanels, dismissHomeNotice, dismissHomeTools, showHomeNotice, showHomeTools, dismissHomeRecommendation, dismissHomeRecommendationsForToday, applyHomeSearch } from './app-renderers.js';
 
@@ -152,16 +152,7 @@ export function onClick(event) {
     applyTheme();
     return;
   }
-  if (event.target.closest('[data-switch-to-beta]')) {
-    setHomeLayoutPreference('beta');
-    toast('已切换到新版首页');
-    return renderHomePage();
-  }
-  if (event.target.closest('[data-switch-to-classic]')) {
-    setHomeLayoutPreference('classic');
-    toast('已切换到旧版首页');
-    return renderHomePage();
-  }
+
   if (event.target.closest('[data-clear-search]')) return clearSearch();
   if (event.target.closest('[data-profile-tab]')) return onProfileTab(event.target.closest('[data-profile-tab]').dataset.profileTab);
   if (event.target.closest('[data-export-profile]')) return onExportProfile();
@@ -174,6 +165,11 @@ export function onClick(event) {
     event.preventDefault();
     event.stopPropagation();
     return onToggleFolderLike(event.target.closest('[data-like-folder]'));
+  }
+  if (event.target.closest('[data-promote-folder-view]')) {
+    event.preventDefault();
+    event.stopPropagation();
+    return onPromoteFolderView(event.target.closest('[data-promote-folder-view]'));
   }
   if (event.target.closest('[data-follow-user]')) {
     event.preventDefault();
@@ -271,7 +267,7 @@ export function onClick(event) {
   const delUser = event.target.closest('[data-delete-user]');
   if (delUser) return onDelete(`/api/admin/users/${delUser.dataset.deleteUser}`, '账号已删除', true);
   const delFolder = event.target.closest('[data-delete-folder]');
-  if (delFolder) return onDelete(`/api/admin/folders/${delFolder.dataset.deleteFolder}`, '鏂囦欢澶瑰凡鍒犻櫎', true);
+  if (delFolder) return onDelete(`/api/admin/folders/${delFolder.dataset.deleteFolder}`, '文件夹已删除', true);
   const delAsset = event.target.closest('[data-delete-asset]');
   if (delAsset) return onDeleteAsset(delAsset.dataset.folderId, delAsset.dataset.deleteAsset, delAsset.dataset.manageMode || 'owner');
   const editFolder = event.target.closest('[data-edit-folder]');
@@ -557,6 +553,28 @@ export async function onToggleFolderLike(button) {
   }
 }
 
+export async function onPromoteFolderView(button) {
+  const folderId = button.dataset.promoteFolderView;
+  if (!folderId || state.bootstrap?.viewer?.role !== 'owner') return;
+  const originalHtml = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 推高中';
+  try {
+    const result = await api(`/api/admin/folders/${encodeURIComponent(folderId)}/view-boost`, { method: 'POST' });
+    if (state.folderDetail?.folder?.id === folderId) {
+      state.folderDetail.folder.viewCount = Number(result.viewCount || state.folderDetail.folder.viewCount || 0);
+      state.folderDetail.folder.realViewCount = Number(result.realViewCount || state.folderDetail.folder.realViewCount || 0);
+      state.folderDetail.folder.viewBoost = result.boost || null;
+      renderFolderPage({ preserveScroll: true });
+    }
+    toast('已开始站长推，播放量会逐步上升。');
+  } catch (error) {
+    button.disabled = false;
+    button.innerHTML = originalHtml;
+    toast(error.message, 'error');
+  }
+}
+
 export async function onToggleFollowUser(button) {
   if (!state.bootstrap?.viewer) {
     history.pushState({}, '', '/profile');
@@ -727,7 +745,7 @@ export async function onSaveAnnouncement(form) {
   try {
     if (submitButton) {
       submitButton.disabled = true;
-      submitButton.textContent = editing ? '淇濆瓨涓?..' : '鍙戝竷涓?..';
+      submitButton.textContent = editing ? '保存中...' : '发布中...';
     }
     await api('/api/admin/announcements', {
       method: 'POST',
@@ -748,7 +766,7 @@ export async function onSaveAnnouncement(form) {
   } finally {
     if (submitButton) {
       submitButton.disabled = false;
-      submitButton.textContent = editing ? '淇濆瓨淇敼' : '淇濆瓨鍏憡';
+      submitButton.textContent = editing ? '保存修改' : '保存公告';
     }
   }
 }
@@ -759,7 +777,7 @@ export async function onSaveSettings(form) {
   try {
     if (submitButton) {
       submitButton.disabled = true;
-      submitButton.textContent = '淇濆瓨涓?..';
+      submitButton.textContent = '保存中...';
     }
     await api('/api/admin/site-settings', { method: 'PUT', body: JSON.stringify({ siteNotice: { title: fd.get('noticeTitle'), content: fd.get('noticeContent') } }) });
     await refreshBootstrap();
@@ -770,7 +788,7 @@ export async function onSaveSettings(form) {
   } finally {
     if (submitButton) {
       submitButton.disabled = false;
-      submitButton.textContent = '淇濆瓨缃《璇存槑';
+      submitButton.textContent = '保存置顶说明';
     }
   }
 }
@@ -781,7 +799,7 @@ export async function onAddRedeemCodes(form) {
   try {
     if (submitButton) {
       submitButton.disabled = true;
-      submitButton.textContent = '娣诲姞涓?..';
+      submitButton.textContent = '添加中...';
     }
     const result = await api('/api/admin/remove-bg/redeem-codes', {
       method: 'POST',
@@ -790,7 +808,7 @@ export async function onAddRedeemCodes(form) {
     state.redeemCodes = { codes: result.codes || [] };
     form.reset();
     await renderDashboardPage();
-    toast(result.message || '鍏戞崲鐮佸凡娣诲姞');
+    toast(result.message || '兑换码已添加');
   } catch (error) {
     toast(error.message, 'error');
   } finally {
@@ -1049,7 +1067,7 @@ export async function onSaveAdminFolder(form) {
     state.adminEditingFolderId = folderId;
     await refreshBootstrap();
     await renderDashboardPage();
-    toast(result.message || '鏂囦欢澶逛俊鎭凡鏇存柊');
+    toast(result.message || '文件夹信息已更新');
   } catch (error) {
     toast(error.message, 'error');
   }
