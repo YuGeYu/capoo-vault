@@ -723,6 +723,7 @@
     .beta-featured-card {
         grid-template-columns: 1fr;
         min-height: 0;
+        height: auto;
         max-height: none;
         gap: 0;
     }
