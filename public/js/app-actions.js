@@ -63,7 +63,8 @@ export async function route() {
   if (path === '/tools/list') return renderToolsListPage();
   if (path !== '/' && !path.startsWith('/media/')) {
     try {
-      state.folderDetail = await api(`/api/public/folders/${encodeURIComponent(path.slice(1))}`);
+      const publicFolderSlug = path === '/hamabo' ? '蛤蟆波' : path.slice(1);
+      state.folderDetail = await api(`/api/public/folders/${encodeURIComponent(publicFolderSlug)}`);
       state.commentsExpanded = false;
       state.recentCommentId = null;
       return renderFolderPage();
