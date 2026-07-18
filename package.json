@@ -40,6 +40,6 @@
     "android:publish-apk": "node ./scripts/publish-android-apk.mjs"
   },
   "devDependencies": {
-    "wrangler": "^4.97.0"
+    "wrangler": "^4.111.0"
   }
 }

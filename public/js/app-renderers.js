@@ -263,6 +263,12 @@ export function renderSiteInfoPage() {
     path: '/site-info'
   });
   const entries = state.bootstrap?.announcements || [];
+  const initialCount = 2;
+  const visibleCount = Math.max(initialCount, Number(state.siteInfoVisibleAnnouncementCount) || initialCount);
+  const visibleEntries = entries.slice(0, visibleCount);
+  const remainingCount = Math.max(0, entries.length - visibleEntries.length);
+  const nextBatchCount = Math.min(2, remainingCount);
+  const expanded = visibleEntries.length > initialCount;
   app.innerHTML = `
     ${header({ title: `<a href="/" class="site-title-link" data-link aria-label="\u8fd4\u56de\u4e3b\u9875"><i class="fas fa-cat"></i> \u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93</a>`, subtitle: '\u7ad9\u5185\u516c\u544a\u4e0e\u7ad9\u52a1\u8bf4\u660e', stats: '\u5b8c\u6574\u516c\u544a\u9875', htmlTitle: true })}
     <main class="container">
@@ -278,9 +284,20 @@ export function renderSiteInfoPage() {
         <div class="site-overview-head"><span class="notice-badge">\u7f6e\u9876\u8bf4\u660e</span><h2>${escape(state.bootstrap?.siteNotice?.title || '\u7ad9\u5185\u516c\u544a')}</h2></div>
         <p class="notice-summary">${escape(state.bootstrap?.siteNotice?.content || '')}</p>
       </section>
+      <section class="site-appreciation" aria-labelledby="site-appreciation-title">
+        <div class="site-appreciation-copy">
+          <span class="site-info-kicker">赞赏站长</span>
+          <h2 id="site-appreciation-title">支持网站继续维护</h2>
+          <p>赞赏完全自愿，感谢你对内容整理和网站维护的支持。</p>
+        </div>
+        <a class="site-appreciation-media" href="/site-owner-tip-code.png" target="_blank" rel="noreferrer" aria-label="在新标签页查看站长唐风正气的赞赏码原图">
+          <img class="site-appreciation-image" src="/site-owner-tip-code.png" alt="站长唐风正气的赞赏码" loading="lazy" decoding="async">
+        </a>
+      </section>
       <section class="notice-board" id="site-notice-board" data-mode="full">
         <div class="notice-board-head"><div><span class="notice-kicker">\u7ad9\u5185\u516c\u544a</span><h2>\u5b8c\u6574\u516c\u544a\u4e0e\u7ad9\u52a1</h2><p>\u8fd9\u91cc\u6309\u65f6\u95f4\u6574\u7406\u5386\u53f2\u66f4\u65b0\uff0c\u4ece\u65b0\u5230\u65e7\u6392\u5217\uff0c\u65b9\u4fbf\u96c6\u4e2d\u67e5\u770b\u7f51\u7ad9\u53d8\u5316\u3002</p></div></div>
-        <div class="notice-entry-list full">${entries.length ? entries.map(noticeEntry).join('') : '<article class="notice-entry"><p class="notice-summary">\u6682\u65f6\u8fd8\u6ca1\u6709\u66f4\u591a\u516c\u544a\u5185\u5bb9\u3002</p></article>'}</div>
+        <div class="notice-entry-list full" aria-live="polite">${entries.length ? visibleEntries.map(noticeEntry).join('') : '<article class="notice-entry"><p class="notice-summary">\u6682\u65f6\u8fd8\u6ca1\u6709\u66f4\u591a\u516c\u544a\u5185\u5bb9\u3002</p></article>'}</div>
+        ${entries.length > initialCount ? `<div class="notice-pagination"><span class="notice-pagination-status">已显示 ${visibleEntries.length} / ${entries.length} 条</span><div class="notice-pagination-actions">${remainingCount > 0 ? `<button class="footer-btn" type="button" data-site-info-show-more aria-expanded="${expanded}">再看 ${nextBatchCount} 条</button>` : ''}${expanded ? '<button class="copy-btn" type="button" data-site-info-collapse>收起公告</button>' : ''}</div></div>` : ''}
       </section>
       ${backendEntry()}
     </main>
@@ -887,7 +904,6 @@ export function homeQuickEntries(showNotice, showTools) {
   const buttons = [
     profileEntryLink(),
     '<a class="home-quick-btn" href="/tools/list" data-link><i class="fas fa-toolbox"></i> 工具列表</a>',
-    '<a class="home-quick-btn" href="/app" data-link><i class="fas fa-mobile-screen-button"></i> 安卓APP</a>',
     showNotice
       ? '<a class="home-quick-btn" href="/site-info" data-link><i class="fas fa-bullhorn"></i> 公告</a>'
       : '<button class="home-quick-btn" type="button" data-home-show-notice="1"><i class="fas fa-bullhorn"></i> 公告</button>'
@@ -1303,11 +1319,11 @@ export function aiApiUserCard(user) {
 }
 
 export function compactFooter() {
-  return `<footer><div class="container"><div class="footer-content footer-content-compact"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>这里主要收集和分享猫猫虫咖波表情包，方便按分类查找、预览和下载。</p><p>完整公告、站务说明和详细页脚内容请前往 <a href="/site-info" data-link>site-info 页面</a> 查看。</p><p><a class="footer-btn footer-link-btn" href="/app" data-link>下载安卓 APP</a></p></div><div class="footer-section"><h3><i class="fas fa-envelope"></i> 联系方式</h3><p>投稿邮箱：<span id="email">2641821302@qq.com</span></p><p>如需投稿、侵权删除或站务联系，请先前往公告页查看说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 • 本网站仅为个人收藏用途 • 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
+  return `<footer><div class="container"><div class="footer-content footer-content-compact"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>这里主要收集和分享猫猫虫咖波表情包，方便按分类查找、预览和下载。</p><p>完整公告、站务说明和详细页脚内容请前往 <a href="/site-info" data-link>site-info 页面</a> 查看。</p></div><div class="footer-section"><h3><i class="fas fa-envelope"></i> 联系方式</h3><p>投稿邮箱：<span id="email">2641821302@qq.com</span></p><p>如需投稿、侵权删除或站务联系，请先前往公告页查看说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 • 本网站仅为个人收藏用途 • 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
 }
 
 export function fullFooter() {
-  return `<footer><div class="container"><div class="footer-content"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>本站致力于收集和分享猫猫虫咖波的图片、表情包和视频内容，所有资源均来自网络投稿，仅供娱乐使用。</p><p>关于猫猫虫官方联动《我的英雄学院》：本站立场明确且不会含糊。我们坚定热爱中国，坚定维护国家主权、统一和领土完整，坚定反对任何歪曲侵略历史、美化军国主义、伤害中华民族感情的内容。中华民族伟大复兴的大势不可阻挡，国家统一的大义不容挑战，任何”台独”分裂言行都注定失败。希望广大同胞都站在历史正确的一边，以身为堂堂正正的中国人为荣，铭记抗战苦难与先烈牺牲。本站只欢迎可爱、健康、积极的猫猫虫咖波内容，不欢迎任何伤害国家和民族感情的杂音。</p><p>如果您是表情包作者并希望删除或添加您的作品，请通过下方按钮联系我们。当前页面就是完整公告与站务页。</p></div><div class="footer-section"><h3><i class="fas fa-upload"></i> 投稿表情包</h3><p>欢迎投稿新的猫猫虫咖波表情包！请确保表情包内容健康，不包含龙图等不良内容。</p><p>投稿规则：先注册并登录个人中心；在”上传作品”里填写作品名称、公开路径和说明；上传图片或视频；提交后等待审核，通过后才会公开显示。</p><p>建议优先上传命名清晰、分类明确、内容完整的资源，这样审核会更顺畅。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn" href="/profile" data-link>前往个人中心投稿</a></div></div><div class="footer-section"><h3><i class="fas fa-shield-heart"></i> 侵权删除</h3><p>如果您发现任何侵权内容，或希望删除某一个表情包，请通过QQ联系我们。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn qq-contact-btn" href="https://qm.qq.com/q/AKPiThhsQg" target="_blank" rel="noreferrer">通过QQ联系删除</a><a class="footer-btn footer-link-btn" href="/app" data-link>下载安卓 APP</a></div><p>点击上方按钮将跳转到QQ聊天页面，请直接发送表情包链接或说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 · 本网站仅为个人收藏用途 · 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
+  return `<footer><div class="container"><div class="footer-content"><div class="footer-section"><h3><i class="fas fa-heart"></i> 关于本站</h3><p>本站致力于收集和分享猫猫虫咖波的图片、表情包和视频内容，所有资源均来自网络投稿，仅供娱乐使用。</p><p>关于猫猫虫官方联动《我的英雄学院》：本站立场明确且不会含糊。我们坚定热爱中国，坚定维护国家主权、统一和领土完整，坚定反对任何歪曲侵略历史、美化军国主义、伤害中华民族感情的内容。中华民族伟大复兴的大势不可阻挡，国家统一的大义不容挑战，任何”台独”分裂言行都注定失败。希望广大同胞都站在历史正确的一边，以身为堂堂正正的中国人为荣，铭记抗战苦难与先烈牺牲。本站只欢迎可爱、健康、积极的猫猫虫咖波内容，不欢迎任何伤害国家和民族感情的杂音。</p><p>如果您是表情包作者并希望删除或添加您的作品，请通过下方按钮联系我们。当前页面就是完整公告与站务页。</p></div><div class="footer-section"><h3><i class="fas fa-upload"></i> 投稿表情包</h3><p>欢迎投稿新的猫猫虫咖波表情包！请确保表情包内容健康，不包含龙图等不良内容。</p><p>投稿规则：先注册并登录个人中心；在”上传作品”里填写作品名称、公开路径和说明；上传图片或视频；提交后等待审核，通过后才会公开显示。</p><p>建议优先上传命名清晰、分类明确、内容完整的资源，这样审核会更顺畅。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn" href="/profile" data-link>前往个人中心投稿</a></div></div><div class="footer-section"><h3><i class="fas fa-shield-heart"></i> 侵权删除</h3><p>如果您发现任何侵权内容，或希望删除某一个表情包，请通过QQ联系我们。</p><div class="footer-action-row"><a class="footer-btn footer-link-btn qq-contact-btn" href="https://qm.qq.com/q/AKPiThhsQg" target="_blank" rel="noreferrer">通过QQ联系删除</a></div><p>点击上方按钮将跳转到QQ聊天页面，请直接发送表情包链接或说明。</p></div></div><div class="footer-bottom"><p>猫猫虫咖波表情包仓库 · 本网站仅为个人收藏用途 · 更新日期：<span id="update-date">${new Date().toLocaleDateString('zh-CN')}</span></p><p class="credits">Made with <i class="fas fa-heart"></i> by 慢慢猫</p></div></div></footer>`;
 }
 
 export function imageModal() {
@@ -1315,7 +1331,7 @@ export function imageModal() {
 }
 
 export function mediaHtml(url, alt, video) {
-  return video ? `<video src="${url}" preload="metadata" muted playsinline></video>` : `<img src="${url}" alt="${attr(alt)}" loading="lazy">`;
+  return video ? `<video src="${url}" preload="metadata" muted playsinline></video>` : `<img src="${url}" alt="${attr(alt)}" loading="lazy" decoding="async">`;
 }
 
 export function folderCard(folder) {
@@ -1866,6 +1882,9 @@ export function renderFolderPage({ preserveScroll = false } = {}) {
   const pageShareUrl = pageShareUrlObject.toString();
   const qqShareUrl = `https://connect.qq.com/widget/shareqq/index.html?url=${encodeURIComponent(pageShareUrl)}&title=${encodeURIComponent(folder.name)}`;
   const commentCount = Number(folder.commentCount || comments.length || 0);
+  const publishedDate = folder.publishedAt
+    ? new Date(folder.publishedAt).toLocaleDateString('zh-CN')
+    : '日期待补充';
   const viewer = state.bootstrap?.viewer;
   const canPromoteViews = viewer?.role === 'owner';
   const promoteLabel = folder.viewBoost?.status === 'active'
@@ -1881,30 +1900,31 @@ export function renderFolderPage({ preserveScroll = false } = {}) {
     image: previewAsset?.url || ''
   });
   app.innerHTML = `
-    ${header({ title: `<a href="/" class="site-title-link" data-link data-home-link aria-label="\u8fd4\u56de\u4e3b\u9875"><i class="fas fa-cat"></i> \u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93</a>`, subtitle: `${folder.name} - \u8d44\u6e90\u5408\u96c6`, stats: `<span>1</span> \u4e2a\u5206\u7c7b \u00b7 <span>${assets.length}</span> \u9879\u5185\u5bb9`, htmlTitle: true })}
+    ${header({ title: `<a href="/" class="site-title-link" data-link data-home-link aria-label="\u8fd4\u56de\u4e3b\u9875"><i class="fas fa-cat"></i> \u732b\u732b\u866b\u5496\u6ce2\u8868\u60c5\u5305\u4ed3\u5e93</a>`, subtitle: '作品详情', stats: `<span>${assets.length}</span> \u9879\u5185\u5bb9`, htmlTitle: true })}
     <main class="container detail-page-container">
       <section class="category-detail">
         <div class="detail-hero">
           <div class="detail-title-row">
             <div>
-              <span class="notice-badge">分类详情</span>
+              <span class="notice-badge">作品</span>
               <h2>${escape(folder.name)}</h2>
             </div>
-            <p class="detail-info">\u5171 <span>${assets.length}</span> \u9879\u5185\u5bb9</p>
+            <p class="detail-info detail-resource-count"><i class="fas fa-images"></i> <span>${assets.length}</span> 项内容</p>
           </div>
           <div class="detail-owner-row">
             <span class="detail-owner-label">发布者</span>
             ${folder.ownerPublicId ? `<a class="detail-owner-link" href="/profile/${folder.ownerPublicId}" data-link>${escape(folder.ownerName || '匿名用户')}</a>` : `<span class="detail-owner-link">${escape(folder.ownerName || '匿名用户')}</span>`}
             ${renderFolderFollowButton(folder)}
+            <span class="detail-published-date"><i class="far fa-calendar"></i> 发布于 ${escape(publishedDate)}</span>
           </div>
           <div class="detail-action-row">
-            <button class="copy-btn detail-social-btn detail-favorite-btn" type="button" data-favorite-folder="${folder.id}" data-favorited="${folder.isFavorited ? 'true' : 'false'}"><i class="${folder.isFavorited ? 'fas' : 'far'} fa-star"></i> ${folder.isFavorited ? '已收藏' : '收藏'}</button>
-            <button class="copy-btn detail-social-btn" type="button" data-like-folder="${folder.id}" data-liked="${folder.isLiked ? 'true' : 'false'}"><i class="${folder.isLiked ? 'fas' : 'far'} fa-heart"></i> ${folder.isLiked ? '已点赞' : '点赞'} ${Number(folder.likeCount || 0)}</button>
+            <button class="copy-btn detail-social-btn detail-favorite-btn" type="button" data-favorite-folder="${folder.id}" data-favorited="${folder.isFavorited ? 'true' : 'false'}" aria-pressed="${folder.isFavorited ? 'true' : 'false'}"><i class="${folder.isFavorited ? 'fas' : 'far'} fa-star"></i> ${folder.isFavorited ? '已收藏' : '收藏'}</button>
+            <button class="copy-btn detail-social-btn detail-like-btn" type="button" data-like-folder="${folder.id}" data-liked="${folder.isLiked ? 'true' : 'false'}" aria-pressed="${folder.isLiked ? 'true' : 'false'}"><i class="${folder.isLiked ? 'fas' : 'far'} fa-heart"></i> ${folder.isLiked ? '已点赞' : '点赞'} ${Number(folder.likeCount || 0)}</button>
             <button class="copy-btn detail-social-btn" type="button" data-scroll-comments><i class="far fa-comment"></i> 评论 ${commentCount}</button>
-            <span class="copy-btn detail-social-btn detail-view-count" aria-label="浏览量"><i class="fas fa-eye"></i> 浏览 ${Number(folder.viewCount || 0)}</span>
+            <span class="detail-stat detail-view-count" aria-label="浏览量 ${Number(folder.viewCount || 0)}"><i class="fas fa-eye"></i> 浏览 ${Number(folder.viewCount || 0)}</span>
             ${canPromoteViews ? `<button class="copy-btn detail-social-btn detail-promote-btn" type="button" data-promote-folder-view="${folder.id}" title="让展示播放量逐步升到全站靠前"><i class="fas fa-chart-line"></i> ${promoteLabel}</button>` : ''}
             <div class="detail-share-wrap">
-              <button class="modal-share-btn detail-share-toggle" type="button" data-toggle-page-share><i class="fas fa-share-nodes"></i> \u5206\u4eab</button>
+              <button class="modal-share-btn detail-share-toggle" type="button" data-toggle-page-share aria-controls="page-share-panel" aria-expanded="false"><i class="fas fa-share-nodes"></i> \u5206\u4eab</button>
               ${renderPageSharePanel(pageShareUrl, qqShareUrl)}
             </div>
           </div>
@@ -1937,7 +1957,7 @@ export function renderFolderPage({ preserveScroll = false } = {}) {
 
 export function renderPageSharePanel(pageShareUrl, qqShareUrl) {
   return `
-    <div class="modal-share-grid detail-share-grid hidden" id="page-share-panel">
+    <div class="modal-share-grid detail-share-grid hidden" id="page-share-panel" role="group" aria-label="分享作品">
       <a class="modal-share-btn" href="${qqShareUrl}" target="_blank" rel="noreferrer"><i class="fab fa-qq"></i> QQ</a>
       <button class="modal-share-btn" type="button" data-copy-url="${attr(pageShareUrl)}"><i class="fas fa-comment"></i> \u590d\u5236\u7ed9\u5fae\u4fe1</button>
       <button class="modal-share-btn" type="button" data-copy-url="${attr(pageShareUrl)}"><i class="fas fa-link"></i> \u590d\u5236\u94fe\u63a5</button>
@@ -1949,11 +1969,11 @@ export function renderPageSharePanel(pageShareUrl, qqShareUrl) {
 export function renderMobileDetailBar(folder, commentCount) {
   return `
     <nav class="detail-mobile-bar" aria-label="\u5206\u7c7b\u5feb\u6377\u64cd\u4f5c">
-      <button type="button" data-favorite-folder="${folder.id}" data-favorited="${folder.isFavorited ? 'true' : 'false'}"><i class="${folder.isFavorited ? 'fas' : 'far'} fa-star"></i><span>${folder.isFavorited ? '已收藏' : '收藏'}</span></button>
-      <button type="button" data-like-folder="${folder.id}" data-liked="${folder.isLiked ? 'true' : 'false'}"><i class="${folder.isLiked ? 'fas' : 'far'} fa-heart"></i><span>${Number(folder.likeCount || 0)}</span></button>
+      <button type="button" data-favorite-folder="${folder.id}" data-favorited="${folder.isFavorited ? 'true' : 'false'}" aria-pressed="${folder.isFavorited ? 'true' : 'false'}"><i class="${folder.isFavorited ? 'fas' : 'far'} fa-star"></i><span>${folder.isFavorited ? '已收藏' : '收藏'}</span></button>
+      <button type="button" data-like-folder="${folder.id}" data-liked="${folder.isLiked ? 'true' : 'false'}" aria-pressed="${folder.isLiked ? 'true' : 'false'}"><i class="${folder.isLiked ? 'fas' : 'far'} fa-heart"></i><span>${Number(folder.likeCount || 0)}</span></button>
       <button type="button" data-scroll-comments><i class="far fa-comment"></i><span>${commentCount}</span></button>
       <button type="button" disabled aria-label="浏览量"><i class="fas fa-eye"></i><span>${Number(folder.viewCount || 0)}</span></button>
-      <button type="button" data-toggle-page-share><i class="fas fa-share-nodes"></i><span>\u5206\u4eab</span></button>
+      <button type="button" data-toggle-page-share aria-controls="page-share-panel" aria-expanded="false"><i class="fas fa-share-nodes"></i><span>\u5206\u4eab</span></button>
       <button type="button" data-scroll-top><i class="fas fa-arrow-up"></i><span>\u9876\u90e8</span></button>
     </nav>
   `;
@@ -1961,7 +1981,7 @@ export function renderMobileDetailBar(folder, commentCount) {
 
 export function renderFolderFollowButton(folder) {
   if (!folder.ownerPublicId) return '';
-  return `<button class="copy-btn detail-social-btn" type="button" data-follow-user="${folder.ownerPublicId}" data-following="${folder.isFollowingOwner ? 'true' : 'false'}"><i class="${folder.isFollowingOwner ? 'fas' : 'far'} fa-user"></i> ${folder.isFollowingOwner ? '已关注' : '关注'} ${Number(folder.followerCount || 0)}</button>`;
+  return `<button class="copy-btn detail-social-btn detail-follow-btn" type="button" data-follow-user="${folder.ownerPublicId}" data-following="${folder.isFollowingOwner ? 'true' : 'false'}" aria-pressed="${folder.isFollowingOwner ? 'true' : 'false'}"><i class="${folder.isFollowingOwner ? 'fas' : 'far'} fa-user"></i> ${folder.isFollowingOwner ? '已关注' : '关注'} ${Number(folder.followerCount || 0)}</button>`;
 }
 
 export function renderFolderComments(folder, comments) {
@@ -2022,10 +2042,10 @@ export function assetCard(asset, index) {
   const assets = sortedAssets();
   const locked = isFolderDownloadLocked();
   const downloadControl = locked
-    ? '<button class="image-tool-btn is-disabled" type="button" disabled title="\u6b64\u5206\u7c7b\u4e0d\u53ef\u4e0b\u8f7d"><i class="fas fa-ban"></i></button>'
+    ? '<button class="image-tool-btn is-disabled" type="button" disabled title="\u6b64\u5206\u7c7b\u4e0d\u53ef\u4e0b\u8f7d" aria-label="此作品不可下载"><i class="fas fa-ban"></i></button>'
     : state.bootstrap?.viewer
-      ? `<a class="image-tool-btn" href="/api/download/${encodeURIComponent(asset.id)}" title="\u4e0b\u8f7d"><i class="fas fa-download"></i></a>`
-      : '<button class="image-tool-btn" type="button" data-login-download title="\u767b\u5f55\u540e\u4e0b\u8f7d"><i class="fas fa-lock"></i></button>';
+      ? `<a class="image-tool-btn" href="/api/download/${encodeURIComponent(asset.id)}" title="\u4e0b\u8f7d" aria-label="下载 ${attr(asset.original_name)}"><i class="fas fa-download"></i></a>`
+      : '<button class="image-tool-btn" type="button" data-login-download title="\u767b\u5f55\u540e\u4e0b\u8f7d" aria-label="登录后下载"><i class="fas fa-lock"></i></button>';
   return `
     <article class="image-card">
       <div class="image-card-media">
@@ -2041,8 +2061,8 @@ export function assetCard(asset, index) {
         </div>
         <p class="image-title">${escape(asset.original_name)}</p>
         <div class="image-card-tools">
-          <button class="image-tool-btn" type="button" data-preview="${index}" title="\u9884\u89c8"><i class="fas fa-eye"></i></button>
-          <button class="image-tool-btn" type="button" data-copy-url="${attr(getAssetShareUrl(asset))}" title="\u590d\u5236\u94fe\u63a5"><i class="fas fa-link"></i></button>
+          <button class="image-tool-btn" type="button" data-preview="${index}" title="\u9884\u89c8" aria-label="预览 ${attr(asset.original_name)}"><i class="fas fa-eye"></i></button>
+          <button class="image-tool-btn" type="button" data-copy-url="${attr(getAssetShareUrl(asset))}" title="\u590d\u5236\u94fe\u63a5" aria-label="复制 ${attr(asset.original_name)} 的链接"><i class="fas fa-link"></i></button>
           ${downloadControl}
         </div>
       </div>

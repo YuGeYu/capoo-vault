@@ -1,5 +1,86 @@
 import { state, escape, attr, formatDate } from './app-support.js';
-import { visibleFolders, HOME_RECOMMEND_TOOLS } from './app-renderers.js';
+import { visibleFolders, HOME_RECOMMEND_TOOLS, todayKey } from './app-renderers.js';
+
+export function folderIdentity(folder) {
+  return String(folder?.id || folder?.slug || folder?.name || '');
+}
+
+export function folderPublishedTime(folder) {
+  const value = new Date(folder?.publishedAt || 0).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function compareNames(a, b) {
+  return String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-CN');
+}
+
+function byPublishedDesc(a, b) {
+  return folderPublishedTime(b) - folderPublishedTime(a) || compareNames(a, b);
+}
+
+function byViewsDesc(a, b) {
+  return Number(b?.viewCount || 0) - Number(a?.viewCount || 0) || byPublishedDesc(a, b);
+}
+
+export function selectFeaturedFolder(folders) {
+  const recent = [...folders].filter(folder => folder?.slug).sort(byPublishedDesc).slice(0, 20);
+  const withCover = recent.filter(folder => folder.coverUrl && Number(folder.count || 0) > 0);
+  return [...(withCover.length ? withCover : recent)].sort(byViewsDesc)[0] || null;
+}
+
+export function takeUnique(target, candidates, count, used) {
+  if (target.length >= count) return target;
+  for (const folder of candidates) {
+    const identity = folderIdentity(folder);
+    if (!identity || used.has(identity)) continue;
+    target.push(folder);
+    used.add(identity);
+    if (target.length >= count) break;
+  }
+  return target;
+}
+
+export function stableHash(value) {
+  let hash = 2166136261;
+  for (const char of String(value || '')) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function stableDailyShuffle(items, seed) {
+  return [...items].sort((a, b) => {
+    const keyA = folderIdentity(a);
+    const keyB = folderIdentity(b);
+    return stableHash(`${seed}:${keyA}`) - stableHash(`${seed}:${keyB}`)
+      || keyA.localeCompare(keyB, 'zh-CN');
+  });
+}
+
+export function buildMixedRecommendations(folders, featuredFolder, seed = `${todayKey()}:lobby-recommend-v1`) {
+  const target = [];
+  const featuredIdentity = folderIdentity(featuredFolder);
+  const used = new Set(featuredIdentity ? [featuredIdentity] : []);
+  const candidates = folders.filter(folder => folder?.slug && folderIdentity(folder) !== featuredIdentity);
+
+  takeUnique(target, [...candidates].sort(byPublishedDesc), 8, used);
+  takeUnique(target, [...candidates].sort(byViewsDesc), 16, used);
+  takeUnique(target, [...candidates].sort((a, b) =>
+    Number(a?.viewCount || 0) - Number(b?.viewCount || 0) || byPublishedDesc(a, b)
+  ), 24, used);
+  takeUnique(target, stableDailyShuffle(candidates, `${seed}:fill`), 24, used);
+
+  return stableDailyShuffle(target, seed);
+}
+
+function betaCoverMedia(folder, { featured = false } = {}) {
+  if (!folder?.coverUrl) return `<div class="${featured ? 'beta-featured' : 'beta-folder'}-placeholder">暂无封面</div>`;
+  if (folder.coverMediaKind === 'video') {
+    return `<video src="${attr(folder.coverUrl)}" aria-label="${attr(folder.name)}" preload="metadata" muted playsinline></video>`;
+  }
+  return `<img src="${attr(folder.coverUrl)}" alt="${attr(folder.name)}" loading="lazy" decoding="async"${featured ? ' fetchpriority="high"' : ''}>`;
+}
 
 export function renderBetaHomePage() {
   const site = state.bootstrap?.site || {};
@@ -9,24 +90,25 @@ export function renderBetaHomePage() {
   // 获取当前频道，默认为推荐
   const currentChannel = state.betaChannel || 'recommend';
 
-  // 根据频道过滤和排序
   let folders = [...allFolders];
-  let channelTitle = '推荐';
+  let channelTitle = '为你精选';
+  let featuredFolder = null;
 
   if (currentChannel === 'latest') {
     channelTitle = '最新发布';
-    // 已经按发布时间排序
+    folders = folders.sort(byPublishedDesc);
   } else if (currentChannel === 'popular') {
     channelTitle = '浏览最多';
-    folders = folders.sort((a, b) => Number(b.viewCount || 0) - Number(a.viewCount || 0));
+    folders = folders.sort(byViewsDesc);
   } else if (currentChannel === 'tools') {
     channelTitle = '站内工具';
+  } else if (state.searchQuery) {
+    channelTitle = '搜索结果';
   } else {
-    channelTitle = '推荐';
+    const recommendationSource = [...(state.bootstrap?.folders || [])];
+    featuredFolder = selectFeaturedFolder(recommendationSource);
+    folders = buildMixedRecommendations(recommendationSource, featuredFolder);
   }
-
-  // 推荐分组
-  const featuredFolder = allFolders[0];
 
   const betaNav = `
     <nav class="beta-home-nav">
@@ -39,7 +121,6 @@ export function renderBetaHomePage() {
           <a href="/" data-link class="beta-nav-link active">首页</a>
           <a href="/tools/list" data-link class="beta-nav-link">工具</a>
           <a href="/site-info" data-link class="beta-nav-link">公告</a>
-          <a href="/app" data-link class="beta-nav-link">APP</a>
           <a href="/dashboard" data-link class="beta-nav-link">后台</a>
           <a href="${viewer ? `/profile/${viewer.publicId || ''}` : '/profile'}" data-link class="beta-nav-link">个人中心</a>
         </div>
@@ -110,7 +191,7 @@ export function renderBetaHomePage() {
   const betaFolderCard = (folder) => `
     <a href="/${encodeURIComponent(folder.slug)}" data-link class="beta-folder-card">
       <div class="beta-folder-cover">
-        ${folder.coverUrl ? `<img src="${attr(folder.coverUrl)}" alt="${attr(folder.name)}" loading="lazy">` : '<div class="beta-folder-placeholder">暂无封面</div>'}
+        ${betaCoverMedia(folder)}
         <div class="beta-folder-badge">${folder.coverMediaKind === 'video' ? '视频' : '图片'}</div>
       </div>
       <div class="beta-folder-info">
@@ -154,33 +235,34 @@ export function renderBetaHomePage() {
       </section>
     `;
   } else {
-    // 推荐、最新、热门频道
     const displayFolders = folders.slice(0, 24);
-    const showFeatured = currentChannel === 'recommend' && featuredFolder;
+    const showFeatured = currentChannel === 'recommend' && !state.searchQuery && featuredFolder;
 
     mainContent = `
       ${showFeatured ? `
         <section class="beta-home-featured">
           <a href="/${encodeURIComponent(featuredFolder.slug)}" data-link class="beta-featured-card">
             <div class="beta-featured-cover">
-              ${featuredFolder.coverUrl ? `<img src="${attr(featuredFolder.coverUrl)}" alt="${attr(featuredFolder.name)}" loading="lazy">` : '<div class="beta-featured-placeholder">暂无封面</div>'}
+              ${betaCoverMedia(featuredFolder, { featured: true })}
             </div>
             <div class="beta-featured-info">
               <span class="beta-featured-badge">精选推荐</span>
               <h3>${escape(featuredFolder.name)}</h3>
               <p>${escape(featuredFolder.description || '猫猫虫咖波表情包合集')}</p>
               <div class="beta-featured-meta">
+                <span><i class="fas fa-clock"></i> ${formatDate(featuredFolder.updatedAt || featuredFolder.publishedAt, true)}</span>
                 <span><i class="fas fa-eye"></i> ${Number(featuredFolder.viewCount || 0)}</span>
                 <span><i class="fas fa-images"></i> ${Number(featuredFolder.count || 0)}</span>
                 <span><i class="fas fa-user"></i> ${escape(featuredFolder.ownerName || '匿名')}</span>
               </div>
+              <span class="beta-featured-action">查看作品 <i class="fas fa-arrow-right"></i></span>
             </div>
           </a>
         </section>
       ` : ''}
       <section class="beta-home-section">
         <div class="beta-section-head">
-          <h3><i class="fas ${currentChannel === 'latest' ? 'fa-clock' : currentChannel === 'popular' ? 'fa-fire' : 'fa-star'}"></i> ${channelTitle}</h3>
+          <h3><i class="fas ${currentChannel === 'latest' ? 'fa-clock' : currentChannel === 'popular' ? 'fa-fire' : currentChannel === 'tools' ? 'fa-wrench' : 'fa-star'}"></i> ${channelTitle}</h3>
         </div>
         <div class="beta-folder-grid">
           ${displayFolders.map(betaFolderCard).join('')}

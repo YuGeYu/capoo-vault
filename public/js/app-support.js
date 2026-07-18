@@ -22,6 +22,7 @@ export const state = {
   adminFolderSearch: '',
   adminEditingFolderId: null,
   announcementDraft: null,
+  siteInfoVisibleAnnouncementCount: 2,
   previewScrollY: 0,
   previewIndex: -1,
   commentsExpanded: false,

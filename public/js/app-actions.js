@@ -42,7 +42,10 @@ export function bindEvents() {
 export async function route() {
   const path = decodeURIComponent(location.pathname);
   closeModal();
-  if (path === '/site-info') return renderSiteInfoPage();
+  if (path === '/site-info') {
+    state.siteInfoVisibleAnnouncementCount = 2;
+    return renderSiteInfoPage();
+  }
   if (path === '/app') return renderAndroidAppPage();
   if (path === '/dashboard') return renderDashboardPage();
   if (path === '/profile') return renderProfileEntryPage();
@@ -153,6 +156,30 @@ export function onClick(event) {
     return;
   }
 
+  if (event.target.closest('[data-site-info-show-more]')) {
+    event.preventDefault();
+    const total = state.bootstrap?.announcements?.length || 0;
+    const current = Math.max(2, Number(state.siteInfoVisibleAnnouncementCount) || 2);
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    state.siteInfoVisibleAnnouncementCount = Math.min(total, current + 2);
+    renderSiteInfoPage();
+    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+    return;
+  }
+  if (event.target.closest('[data-site-info-collapse]')) {
+    event.preventDefault();
+    state.siteInfoVisibleAnnouncementCount = 2;
+    renderSiteInfoPage();
+    requestAnimationFrame(() => {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.getElementById('site-notice-board')?.scrollIntoView({
+        behavior: reducedMotion ? 'auto' : 'smooth',
+        block: 'start'
+      });
+    });
+    return;
+  }
+
   if (event.target.closest('[data-clear-search]')) return clearSearch();
   if (event.target.closest('[data-profile-tab]')) return onProfileTab(event.target.closest('[data-profile-tab]').dataset.profileTab);
   if (event.target.closest('[data-export-profile]')) return onExportProfile();
@@ -223,7 +250,13 @@ export function onClick(event) {
   if (toggleShareButton) {
     event.preventDefault();
     const panel = document.getElementById('page-share-panel');
-    if (panel) panel.classList.toggle('hidden');
+    if (panel) {
+      const willOpen = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden');
+      document.querySelectorAll('[data-toggle-page-share]').forEach(button => {
+        button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      });
+    }
     return;
   }
   const sharePageButton = event.target.closest('[data-share-page]');
@@ -257,6 +290,7 @@ export function onClick(event) {
   const sharePanel = document.getElementById('page-share-panel');
   if (sharePanel && !sharePanel.classList.contains('hidden') && !event.target.closest('#page-share-panel')) {
     sharePanel.classList.add('hidden');
+    document.querySelectorAll('[data-toggle-page-share]').forEach(button => button.setAttribute('aria-expanded', 'false'));
   }
   const review = event.target.closest('[data-review-action]');
   if (review) return onReview(review);

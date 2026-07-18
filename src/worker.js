@@ -871,7 +871,7 @@ function renderSeoHome(page, folders) {
 }
 
 function renderSeoSiteInfo(page, siteNotice, announcements) {
-  const items = announcements.slice(0, 8).map(item => `<li><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.content || '')}</span></li>`).join('');
+  const items = announcements.slice(0, 2).map(item => `<li><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.content || '')}</span></li>`).join('');
   return `<main class="container seo-shell"><section class="site-info-hero"><div class="site-info-hero-text"><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.description)}</p></div></section><section><h2>${escapeHtml(siteNotice?.title || '站内公告')}</h2><p>${escapeHtml(siteNotice?.content || '')}</p><ul>${items}</ul></section></main>`;
 }
 
