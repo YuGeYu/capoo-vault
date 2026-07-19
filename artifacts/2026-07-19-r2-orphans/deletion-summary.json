@@ -1,0 +1,15 @@
+{
+  "manifestSha256": "bcfadd99517094ba2ebb03f1e03648c99c88857b18591154b1b9ac0e2d4fc440",
+  "candidateCount": 652,
+  "journalRecords": 1847,
+  "uniqueDeletedCount": 652,
+  "duplicateDeletedRecords": 541,
+  "uniqueFailedAttemptKeys": 2,
+  "terminalFailedCount": 0,
+  "staleCount": 0,
+  "postAuditCandidateCount": 0,
+  "postAuditObjectCount": 5227,
+  "postAuditTotalBytes": 2184673636,
+  "deletedBytes": 327009547,
+  "verifiedAt": "2026-07-19T09:34:49.4116642Z"
+}
