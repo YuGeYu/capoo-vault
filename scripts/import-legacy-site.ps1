@@ -128,6 +128,12 @@ function Upload-FileViaApi {
   } | Out-Null
 }
 
+function Remove-UploadedKey {
+  param([string]$ApiOrigin, [string]$ImportToken, [string]$R2Key)
+  $url = '{0}/api/admin/import/r2-object?key={1}' -f $ApiOrigin.TrimEnd('/'), ([Uri]::EscapeDataString($R2Key))
+  try { Invoke-RestMethod -Uri $url -Method Delete -Headers @{ 'x-import-token' = $ImportToken } | Out-Null } catch { Write-Warning "Cleanup failed for $R2Key : $($_.Exception.Message)" }
+}
+
 function Import-FolderViaApi {
   param(
     [string]$ApiOrigin,
@@ -227,6 +233,7 @@ foreach ($category in $categories) {
   $slug = Normalize-Slug -Value $category.Name
   $now = [DateTime]::UtcNow.ToString('o')
   $assets = New-Object System.Collections.Generic.List[object]
+  $uploadedKeys = New-Object System.Collections.Generic.List[string]
 
   if (Test-SlugExistsViaApi -ApiOrigin $ApiOrigin -ImportToken $ImportToken -Slug $slug) {
     $skippedFolders += 1
@@ -236,6 +243,7 @@ foreach ($category in $categories) {
 
   Write-Host "Importing $($category.Name) with $($category.Files.Count) files"
 
+  try {
   for ($index = 0; $index -lt $category.Files.Count; $index++) {
     $file = $category.Files[$index]
     $extension = $file.Extension.ToLowerInvariant()
@@ -244,6 +252,7 @@ foreach ($category in $categories) {
     $r2Key = "published/$folderId/$assetId$extension"
 
     Upload-FileViaApi -ApiOrigin $ApiOrigin -ImportToken $ImportToken -R2Key $r2Key -ContentType $mimeType -FilePath $file.FullName
+    $uploadedKeys.Add($r2Key)
 
     $assets.Add([ordered]@{
       id = $assetId
@@ -289,6 +298,10 @@ foreach ($category in $categories) {
   }
 
   $result = Import-FolderViaApi -ApiOrigin $ApiOrigin -ImportToken $ImportToken -Payload $payload
+  } catch {
+    foreach ($key in $uploadedKeys) { Remove-UploadedKey -ApiOrigin $ApiOrigin -ImportToken $ImportToken -R2Key $key }
+    throw
+  }
   if ($result.skipped -eq $true) {
     $skippedFolders += 1
     Write-Host "Skipped $($category.Name): $($result.reason)"

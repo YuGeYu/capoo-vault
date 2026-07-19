@@ -86,8 +86,10 @@ async function main() {
     const folderId = makeId('folder');
     const now = new Date().toISOString();
     const assetRows = [];
+    const uploadedKeys = [];
 
-    for (let index = 0; index < category.files.length; index += 1) {
+    try {
+      for (let index = 0; index < category.files.length; index += 1) {
       const file = category.files[index];
       const ext = path.extname(file.name).toLowerCase();
       const assetId = makeId('asset');
@@ -97,6 +99,7 @@ async function main() {
 
       if (!options.dryRun) {
         await uploadViaApi(options.apiOrigin, options.importToken, r2Key, mimeType, file.absolutePath);
+        uploadedKeys.push(r2Key);
       }
 
       assetRows.push({
@@ -117,9 +120,9 @@ async function main() {
       if (index === 0 || (index + 1) % 50 === 0 || index + 1 === category.files.length) {
         console.log(`  文件进度 ${index + 1}/${category.files.length}`);
       }
-    }
+      }
 
-    if (!options.dryRun) {
+      if (!options.dryRun) {
       const payload = buildImportPayload({
         owner,
         folderId,
@@ -131,9 +134,14 @@ async function main() {
       });
       const result = await importFolderViaApi(options.apiOrigin, options.importToken, payload);
       if (result?.skipped) {
+          await cleanupUploadedKeys(options, uploadedKeys);
         console.log(`跳过 ${category.name}，远端提示 ${result.reason}`);
         continue;
       }
+      }
+    } catch (error) {
+      if (!options.dryRun) await cleanupUploadedKeys(options, uploadedKeys);
+      throw error;
     }
 
     migratedFolders += 1;
@@ -304,6 +312,15 @@ async function uploadViaApi(apiOrigin, importToken, key, contentType, filePath) 
   });
   if (!response.ok) {
     throw new Error(`上传失败 ${filePath} -> ${key}: ${await response.text()}`);
+  }
+}
+
+async function cleanupUploadedKeys(options, keys) {
+  for (const key of keys) {
+    try {
+      const url = `${options.apiOrigin.replace(/\/$/, '')}/api/admin/import/r2-object?key=${encodeURIComponent(key)}`;
+      await fetchWithRetry(url, { method: 'DELETE', headers: { 'x-import-token': options.importToken }, dispatcher: httpAgent });
+    } catch (error) { console.error(JSON.stringify({ event: 'legacy_import_cleanup_error', key, error: error.message })); }
   }
 }
 

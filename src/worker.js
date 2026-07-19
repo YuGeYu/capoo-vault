@@ -162,7 +162,9 @@ export async function runDatabaseMaintenance(env, scheduledTime) {
       expiredSessionsBeforeCleanup,
       databaseSizeBytes
     );
+    const r2Metric = await recordMonthlyR2Metric(env, scheduledDate);
     const alerts = [...monthlyMetric.alerts];
+    alerts.push(...(r2Metric.alerts || []));
     if (expiredSessionsBeforeCleanup > EXPIRED_SESSION_ALERT_COUNT) {
       alerts.push('expired_sessions_over_1000');
     }
@@ -181,7 +183,8 @@ export async function runDatabaseMaintenance(env, scheduledTime) {
       sessionsCount: monthlyMetric.sessionsCount ?? sessionsCount,
       growthBytes: monthlyMetric.growthBytes,
       growthRatio: monthlyMetric.growthRatio,
-      alerts
+      alerts,
+      r2Metric
     };
     if (alerts.length) {
       console.warn(JSON.stringify(logEntry));
@@ -198,6 +201,40 @@ export async function runDatabaseMaintenance(env, scheduledTime) {
       error: error?.message || String(error)
     }));
     throw error;
+  }
+}
+
+async function recordMonthlyR2Metric(env, date) {
+  const localDate = getLocalDateStringFromDate(date, DATABASE_MAINTENANCE_TIMEZONE);
+  if (!localDate.endsWith('-01')) return { written: false, alerts: [] };
+  const month = localDate.slice(0, 7);
+  try {
+    const objects = [];
+    let cursor = '';
+    do {
+      const page = await env.MMC_MEDIA.list({ limit: 1000, ...(cursor ? { cursor } : {}) });
+      objects.push(...(page.objects || []));
+      cursor = page.truncated ? page.cursor : '';
+    } while (cursor);
+    const refs = new Set();
+    let refCursor = 0;
+    while (true) {
+      const result = await env.MMC_DB.prepare('SELECT r2_key FROM assets LIMIT 1000 OFFSET ?').bind(refCursor).all();
+      const rows = result.results || [];
+      rows.forEach(row => refs.add(row.r2_key));
+      if (rows.length < 1000) break;
+      refCursor += rows.length;
+    }
+    const protectedCount = objects.filter(object => object.key.startsWith('downloads/android/')).filter(object => !refs.has(object.key)).length;
+    const unreferenced = objects.filter(object => !refs.has(object.key));
+    const measuredAt = date.toISOString();
+    await env.MMC_DB.prepare(`INSERT INTO r2_monthly_metrics (month, measured_at, object_count, total_bytes, referenced_count, unreferenced_count, unreferenced_bytes, protected_unreferenced_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(month) DO UPDATE SET measured_at=excluded.measured_at, object_count=excluded.object_count, total_bytes=excluded.total_bytes, referenced_count=excluded.referenced_count, unreferenced_count=excluded.unreferenced_count, unreferenced_bytes=excluded.unreferenced_bytes, protected_unreferenced_count=excluded.protected_unreferenced_count, updated_at=excluded.updated_at`).bind(month, measuredAt, objects.length, objects.reduce((sum, item) => sum + Number(item.size || 0), 0), objects.length - unreferenced.length, unreferenced.length, unreferenced.reduce((sum, item) => sum + Number(item.size || 0), 0), protectedCount, measuredAt, measuredAt).run();
+    const alerts = [];
+    if (unreferenced.length > 1000) alerts.push('r2_unreferenced_over_1000');
+    return { written: true, objectCount: objects.length, unreferencedCount: unreferenced.length, unreferencedBytes: unreferenced.reduce((sum, item) => sum + Number(item.size || 0), 0), alerts };
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'r2_metric_error', error: error?.message || String(error) }));
+    return { written: false, error: error?.message || String(error), alerts: ['r2_metric_error'] };
   }
 }
 
@@ -600,12 +637,31 @@ async function handleApi(request, env, url) {
     requireImportToken(request, env);
     const key = String(url.searchParams.get('key') || '').trim();
     const contentType = String(url.searchParams.get('contentType') || 'application/octet-stream').trim();
-    if (!key) {
-      throw new HttpError(400, '缺少导入 key。');
-    }
+    validateImportR2Key(key);
+    validateImportContentType(contentType, key);
+    const existing = await env.MMC_MEDIA.head(key);
+    if (existing) throw new HttpError(409, '导入 key 已存在，拒绝覆盖。');
     await env.MMC_MEDIA.put(key, request.body, {
       httpMetadata: { contentType }
     });
+    return json({ ok: true, key });
+  }
+
+  if (pathname === '/api/admin/import/r2-inventory' && method === 'GET') {
+    requireImportToken(request, env);
+    const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit') || 1000)));
+    const cursor = String(url.searchParams.get('cursor') || '');
+    const page = await env.MMC_MEDIA.list({ limit, ...(cursor ? { cursor } : {}) });
+    return json({ objects: page.objects || [], truncated: Boolean(page.truncated), cursor: page.cursor || null });
+  }
+
+  if (pathname === '/api/admin/import/r2-object' && method === 'DELETE') {
+    requireImportToken(request, env);
+    const key = String(url.searchParams.get('key') || '').trim();
+    validateImportR2Key(key);
+    const referenced = await env.MMC_DB.prepare('SELECT 1 FROM assets WHERE r2_key = ? LIMIT 1').bind(key).first();
+    if (referenced) throw new HttpError(409, '对象仍被 D1 引用，拒绝删除。');
+    await env.MMC_MEDIA.delete(key);
     return json({ ok: true, key });
   }
 
@@ -4772,15 +4828,21 @@ async function writeUploadedAssets(env, { files, folderId, userId, startSortOrde
 
   for (let index = 0; index < records.length; index += UPLOAD_R2_CONCURRENCY) {
     const batch = records.slice(index, index + UPLOAD_R2_CONCURRENCY);
-    await Promise.all(batch.map(record => env.MMC_MEDIA.put(record.r2Key, record.file.stream(), {
+    const results = await Promise.allSettled(batch.map(record => env.MMC_MEDIA.put(record.r2Key, record.file.stream(), {
       httpMetadata: {
         contentType: record.mimeType
       }
     })));
+    const failures = results.filter(result => result.status === 'rejected');
+    if (failures.length) {
+      await compensateUploadedKeys(env, batch.filter((_, i) => results[i].status === 'fulfilled').map(record => record.r2Key));
+      throw failures[0].reason;
+    }
   }
 
   if (records.length) {
-    await env.MMC_DB.batch(records.map(record => env.MMC_DB.prepare(
+    try {
+      await env.MMC_DB.batch(records.map(record => env.MMC_DB.prepare(
       `
         INSERT INTO assets (
           id, folder_id, uploader_user_id, r2_key, original_name, mime_type, media_kind,
@@ -4801,10 +4863,41 @@ async function writeUploadedAssets(env, { files, folderId, userId, startSortOrde
       record.status,
       record.createdAt,
       record.publishedAt
-    )));
+      )));
+    } catch (error) {
+      await compensateUploadedKeys(env, records.map(record => record.r2Key));
+      throw error;
+    }
   }
 
   return records;
+}
+
+async function compensateUploadedKeys(env, keys) {
+  for (const key of keys) {
+    try {
+      const referenced = await env.MMC_DB.prepare('SELECT 1 FROM assets WHERE r2_key = ? LIMIT 1').bind(key).first();
+      if (!referenced) await env.MMC_MEDIA.delete(key);
+    } catch (error) {
+      console.error(JSON.stringify({ event: 'r2_upload_compensation_error', key, error: error?.message || String(error) }));
+    }
+  }
+}
+
+function validateImportR2Key(key) {
+  if (!/^published\/[^/]+\/[^/]+\.(jpg|jpeg|png|bmp|webp|gif|mp4|webm|mov|m4v)$/i.test(key) || key.includes('..') || key.includes('\\') || key.startsWith('downloads/android/')) {
+    throw new HttpError(400, '导入 key 不符合安全格式。');
+  }
+  if (key.length > 512) throw new HttpError(400, '导入 key 过长。');
+}
+
+function validateImportContentType(contentType, key) {
+  if (!/^(image\/(jpeg|png|bmp|webp|gif)|video\/(mp4|webm|quicktime|x-m4v))$/i.test(contentType)) {
+    throw new HttpError(400, '导入 content type 不受支持。');
+  }
+  const ext = key.slice(key.lastIndexOf('.') + 1).toLowerCase();
+  const allowed = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', bmp: 'image/bmp', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', m4v: 'video/x-m4v' };
+  if (allowed[ext] !== contentType.toLowerCase()) throw new HttpError(400, '扩展名与 content type 不匹配。');
 }
 
 async function getEditableOwnedFolder(env, userId, folderId) {
