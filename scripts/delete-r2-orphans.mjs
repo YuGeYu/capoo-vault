@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import crypto from 'node:crypto';
 const args = parseArgs(process.argv.slice(2));
 if (!args.manifest) throw new Error('需要 --manifest。');
 const manifestPath = path.resolve(args.manifest);
@@ -10,6 +11,10 @@ const token = args['import-token'] || process.env.IMPORT_TOKEN;
 if (!origin || !token) throw new Error('需要 --origin 与 --import-token。');
 const expected = args.confirm || '';
 if (args.apply && !/^[a-f0-9]{64}$/i.test(expected)) throw new Error('--apply 必须提供 manifest 的 r2-orphans.json SHA-256。');
+if (args.apply) {
+  const actual = crypto.createHash('sha256').update(await fs.readFile(manifestPath)).digest('hex');
+  if (actual.toLowerCase() !== expected.toLowerCase()) throw new Error(`manifest SHA-256 不匹配：实际 ${actual}`);
+}
 const journalPath = path.join(path.dirname(manifestPath), 'deletion-journal.jsonl');
 const done = new Set();
 try { for (const line of (await fs.readFile(journalPath, 'utf8')).split(/\r?\n/).filter(Boolean)) { const row = JSON.parse(line); if (row.result === 'deleted') done.add(row.key); } } catch {}
