@@ -71,4 +71,17 @@ function parseArgs(values) { const result = {}; for (let i = 0; i < values.lengt
 function normalizeEtag(value) { return String(value || '').replace(/^"|"$/g, '').toLowerCase(); }
 function csvEscape(value) { return `"${String(value ?? '').replaceAll('"', '""')}"`; }
 async function sha256File(file) { const hash = crypto.createHash('sha256'); hash.update(await fs.readFile(file)); return hash.digest('hex'); }
-async function queryD1(sql) { const { stdout } = await execFileAsync('npx', ['wrangler', 'd1', 'execute', 'MMC_DB', '--remote', '-c', 'wrangler.production.toml', '--json', `--command=${sql}`], { maxBuffer: 20 * 1024 * 1024 }); const match = stdout.match(/\[\s*\{[\s\S]*\}\s*\]\s*$/); if (!match) throw new Error(`无法解析 D1 JSON: ${stdout}`); const parsed = JSON.parse(match[0]); return parsed.flatMap(item => item.results || []); }
+async function queryD1(sql) {
+  let stdout;
+  if (process.platform === 'win32') {
+    const escaped = sql.replaceAll("'", "''");
+    const command = `& npx wrangler d1 execute MMC_DB --remote -c wrangler.production.toml --json --command '${escaped}'`;
+    ({ stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { maxBuffer: 20 * 1024 * 1024 }));
+  } else {
+    ({ stdout } = await execFileAsync('npx', ['wrangler', 'd1', 'execute', 'MMC_DB', '--remote', '-c', 'wrangler.production.toml', '--json', `--command=${sql}`], { maxBuffer: 20 * 1024 * 1024 }));
+  }
+  const match = stdout.match(/\[\s*\{[\s\S]*\}\s*\]\s*$/);
+  if (!match) throw new Error(`无法解析 D1 JSON: ${stdout}`);
+  const parsed = JSON.parse(match[0]);
+  return parsed.flatMap(item => item.results || []);
+}

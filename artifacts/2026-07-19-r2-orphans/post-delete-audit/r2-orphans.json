@@ -1,0 +1,46 @@
+{
+  "auditRunId": "fd7cedba-f1c5-421c-841c-637ec42e667f",
+  "generatedAt": "2026-07-19T09:26:55.203Z",
+  "cutoffDays": 30,
+  "candidates": [],
+  "protected": [
+    {
+      "storageClass": "Standard",
+      "uploaded": "2026-06-27T01:29:59.508Z",
+      "checksums": {
+        "md5": "5323f4f5d203e7b9064a8437476ad971"
+      },
+      "httpEtag": "\"5323f4f5d203e7b9064a8437476ad971\"",
+      "etag": "5323f4f5d203e7b9064a8437476ad971",
+      "size": 18413,
+      "version": "7e60f94d58e8b0a04e234b25a105f8fe",
+      "key": "downloads/android/latest.apk"
+    },
+    {
+      "storageClass": "Standard",
+      "uploaded": "2026-06-27T01:30:04.045Z",
+      "checksums": {
+        "md5": "aa2a833a1137435df7c9cb8c77d0ef91"
+      },
+      "httpEtag": "\"aa2a833a1137435df7c9cb8c77d0ef91\"",
+      "etag": "aa2a833a1137435df7c9cb8c77d0ef91",
+      "size": 479,
+      "version": "7e60f94d475f58969470c31d36263719",
+      "key": "downloads/android/latest.json"
+    },
+    {
+      "storageClass": "Standard",
+      "uploaded": "2026-06-27T01:29:55.982Z",
+      "checksums": {
+        "md5": "5323f4f5d203e7b9064a8437476ad971"
+      },
+      "httpEtag": "\"5323f4f5d203e7b9064a8437476ad971\"",
+      "etag": "5323f4f5d203e7b9064a8437476ad971",
+      "size": 18413,
+      "version": "7e60f94d66dbfb6c2300faaff84d8d4e",
+      "key": "downloads/android/maomaochong-android-v1.0.0.apk"
+    }
+  ],
+  "inventoryCount": 5227,
+  "d1ReferenceCount": 5224
+}

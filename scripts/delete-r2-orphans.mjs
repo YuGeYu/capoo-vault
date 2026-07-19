@@ -18,18 +18,23 @@ if (args.apply) {
 const journalPath = path.join(path.dirname(manifestPath), 'deletion-journal.jsonl');
 const done = new Set();
 try { for (const line of (await fs.readFile(journalPath, 'utf8')).split(/\r?\n/).filter(Boolean)) { const row = JSON.parse(line); if (row.result === 'deleted') done.add(row.key); } } catch {}
-for (const item of manifest.candidates || []) {
-  if (done.has(item.key)) continue;
-  const row = { at: new Date().toISOString(), key: item.key, manifestSha256: expected || null, result: 'dry_run' };
-  if (args.apply) {
-    try {
-      const url = new URL('/api/admin/import/r2-object', origin); url.searchParams.set('key', item.key);
-      const response = await fetch(url, { method: 'DELETE', headers: { 'x-import-token': token } });
-      row.result = response.ok ? 'deleted' : (response.status === 409 ? 'stale' : 'failed');
-      if (!response.ok) row.error = await response.text();
-    } catch (error) { row.result = 'failed'; row.error = error.message; }
+const pending = (manifest.candidates || []).filter(item => !done.has(item.key));
+let nextIndex = 0;
+async function worker() {
+  while (nextIndex < pending.length) {
+    const item = pending[nextIndex++];
+    const row = { at: new Date().toISOString(), key: item.key, manifestSha256: expected || null, result: 'dry_run' };
+    if (args.apply) {
+      try {
+        const url = new URL('/api/admin/import/r2-object', origin); url.searchParams.set('key', item.key);
+        const response = await fetch(url, { method: 'DELETE', headers: { 'x-import-token': token } });
+        row.result = response.ok ? 'deleted' : (response.status === 409 ? 'stale' : 'failed');
+        if (!response.ok) row.error = await response.text();
+      } catch (error) { row.result = 'failed'; row.error = error.message; }
+    }
+    await fs.appendFile(journalPath, `${JSON.stringify(row)}\n`);
+    console.log(JSON.stringify(row));
   }
-  await fs.appendFile(journalPath, `${JSON.stringify(row)}\n`);
-  console.log(JSON.stringify(row));
 }
+await Promise.all([worker(), worker(), worker()]);
 function parseArgs(values) { const result = {}; for (let i = 0; i < values.length; i += 1) { if (values[i].startsWith('--')) result[values[i].slice(2)] = values[i + 1]?.startsWith('--') ? true : values[++i]; } return result; }

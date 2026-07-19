@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-07-19T09:14:11.924Z",
+  "auditRunId": "a74d8907-115c-4742-af6b-6a41b4751f6a",
+  "objectCount": 5879,
+  "totalBytes": 2511683183,
+  "d1ReferenceCount": 5224,
+  "candidateCount": 652,
+  "candidateBytes": 327009547,
+  "protectedCount": 3,
+  "protectedBytes": 37305,
+  "errors": []
+}
