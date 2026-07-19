@@ -1,0 +1,175 @@
+[
+  {
+    "results": [
+      {
+        "cutoff_iso": "2026-07-19T04:04:19.886Z"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.1371
+      },
+      "duration": 0.1371,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3698688,
+      "rows_read": 0,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  },
+  {
+    "results": [
+      {
+        "sessions_total": 170,
+        "expired_sessions": 142,
+        "active_sessions": 28
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.2337
+      },
+      "duration": 0.2337,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3698688,
+      "rows_read": 170,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  },
+  {
+    "results": [
+      {
+        "seq": 0,
+        "name": "idx_sessions_user_id",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 1,
+        "name": "sqlite_autoindex_sessions_2",
+        "unique": 1,
+        "origin": "u",
+        "partial": 0
+      },
+      {
+        "seq": 2,
+        "name": "sqlite_autoindex_sessions_1",
+        "unique": 1,
+        "origin": "pk",
+        "partial": 0
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.1503
+      },
+      "duration": 0.1503,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3698688,
+      "rows_read": 0,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  },
+  {
+    "results": [
+      {
+        "id": 3,
+        "parent": 0,
+        "notused": 39,
+        "detail": "SEARCH s USING INDEX sqlite_autoindex_sessions_2 (token_hash=?)"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.11
+      },
+      "duration": 0.11,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3698688,
+      "rows_read": 0,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  },
+  {
+    "results": [
+      {
+        "sql": "CREATE TABLE database_monthly_metrics (\n  month TEXT PRIMARY KEY,\n  measured_at TEXT NOT NULL,\n  database_size_bytes INTEGER NOT NULL,\n  assets_count INTEGER NOT NULL,\n  sessions_count INTEGER NOT NULL,\n  expired_sessions_before_cleanup INTEGER NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL\n)"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.1414
+      },
+      "duration": 0.1414,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3698688,
+      "rows_read": 91,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  },
+  {
+    "results": [
+      {
+        "metrics_rows": 0
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.1451
+      },
+      "duration": 0.1451,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3698688,
+      "rows_read": 0,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]

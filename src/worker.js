@@ -1,5 +1,10 @@
 ﻿const SESSION_COOKIE = 'mmc_session';
 const SESSION_TTL_DAYS = 14;
+const SESSION_LAST_SEEN_WRITE_INTERVAL_MS = 30 * 60 * 1000;
+const DATABASE_MAINTENANCE_TIMEZONE = 'Asia/Shanghai';
+const DATABASE_GROWTH_ALERT_BYTES = 1024 * 1024;
+const DATABASE_GROWTH_ALERT_RATIO = 0.2;
+const EXPIRED_SESSION_ALERT_COUNT = 1000;
 const MAX_FILES_PER_FOLDER = 60;
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const UPLOAD_R2_CONCURRENCY = 3;
@@ -128,8 +133,170 @@ export default {
       const status = error instanceof HttpError ? error.status : 500;
       return withCors(withServerTiming(json({ error: error.message || '服务器开小差了，请稍后再试。' }, status), startedAt));
     }
+  },
+
+  scheduled(controller, env, ctx) {
+    ctx.waitUntil(runDatabaseMaintenance(env, controller.scheduledTime));
   }
 };
+
+export async function runDatabaseMaintenance(env, scheduledTime) {
+  const startedAt = Date.now();
+  const scheduledDate = new Date(Number.isFinite(scheduledTime) ? scheduledTime : Date.now());
+  const cutoffIso = scheduledDate.toISOString();
+
+  try {
+    const sessionStats = await env.MMC_DB.prepare(
+      `SELECT COUNT(*) AS sessions_count,
+              SUM(CASE WHEN expires_at <= ? THEN 1 ELSE 0 END) AS expired_sessions
+       FROM sessions`
+    ).bind(cutoffIso).first();
+    const expiredSessionsBeforeCleanup = Number(sessionStats?.expired_sessions || 0);
+    const cleanupResult = await cleanupExpiredSessions(env, cutoffIso);
+    const deletedSessions = Number(cleanupResult?.meta?.changes || 0);
+    const databaseSizeBytes = Number(cleanupResult?.meta?.size_after || 0);
+    const sessionsCount = Math.max(0, Number(sessionStats?.sessions_count || 0) - deletedSessions);
+    const monthlyMetric = await recordMonthlyDatabaseMetric(
+      env,
+      scheduledDate,
+      expiredSessionsBeforeCleanup,
+      databaseSizeBytes
+    );
+    const alerts = [...monthlyMetric.alerts];
+    if (expiredSessionsBeforeCleanup > EXPIRED_SESSION_ALERT_COUNT) {
+      alerts.push('expired_sessions_over_1000');
+    }
+
+    const logEntry = {
+      event: 'd1_maintenance',
+      status: 'ok',
+      measuredAt: cutoffIso,
+      cutoffIso,
+      durationMs: Date.now() - startedAt,
+      deletedSessions,
+      expiredSessionsBeforeCleanup,
+      monthlyMetricWritten: monthlyMetric.written,
+      databaseSizeBytes: monthlyMetric.databaseSizeBytes || databaseSizeBytes,
+      assetsCount: monthlyMetric.assetsCount,
+      sessionsCount: monthlyMetric.sessionsCount ?? sessionsCount,
+      growthBytes: monthlyMetric.growthBytes,
+      growthRatio: monthlyMetric.growthRatio,
+      alerts
+    };
+    if (alerts.length) {
+      console.warn(JSON.stringify(logEntry));
+    } else {
+      console.log(JSON.stringify(logEntry));
+    }
+    return logEntry;
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'd1_maintenance',
+      status: 'error',
+      measuredAt: cutoffIso,
+      durationMs: Date.now() - startedAt,
+      error: error?.message || String(error)
+    }));
+    throw error;
+  }
+}
+
+export async function cleanupExpiredSessions(env, cutoffIso) {
+  return env.MMC_DB.prepare(
+    'DELETE FROM sessions WHERE expires_at <= ?'
+  ).bind(cutoffIso).run();
+}
+
+export async function recordMonthlyDatabaseMetric(env, date, expiredBeforeCleanup, sizeAfterCleanup = 0) {
+  const localDate = getLocalDateStringFromDate(date, DATABASE_MAINTENANCE_TIMEZONE);
+  if (!localDate.endsWith('-01')) {
+    return emptyMonthlyMetric(sizeAfterCleanup);
+  }
+
+  const month = localDate.slice(0, 7);
+  const measuredAt = date.toISOString();
+  const [assetsResult, sessionsResult] = await env.MMC_DB.batch([
+    env.MMC_DB.prepare('SELECT COUNT(*) AS count FROM assets'),
+    env.MMC_DB.prepare('SELECT COUNT(*) AS count FROM sessions')
+  ]);
+  const assetsCount = Number(assetsResult?.results?.[0]?.count || 0);
+  const sessionsCount = Number(sessionsResult?.results?.[0]?.count || 0);
+  const databaseSizeBytes = Number(
+    sessionsResult?.meta?.size_after || assetsResult?.meta?.size_after || sizeAfterCleanup || 0
+  );
+  const previousResult = await env.MMC_DB.prepare(
+    `SELECT month, database_size_bytes
+     FROM database_monthly_metrics
+     WHERE month < ?
+     ORDER BY month DESC
+     LIMIT 2`
+  ).bind(month).all();
+  const growth = calculateDatabaseGrowth(previousResult?.results || [], databaseSizeBytes);
+
+  await env.MMC_DB.prepare(
+    `INSERT INTO database_monthly_metrics (
+       month, measured_at, database_size_bytes, assets_count, sessions_count,
+       expired_sessions_before_cleanup, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(month) DO UPDATE SET
+       measured_at = excluded.measured_at,
+       database_size_bytes = excluded.database_size_bytes,
+       assets_count = excluded.assets_count,
+       sessions_count = excluded.sessions_count,
+       expired_sessions_before_cleanup = excluded.expired_sessions_before_cleanup,
+       updated_at = excluded.updated_at`
+  ).bind(
+    month,
+    measuredAt,
+    databaseSizeBytes,
+    assetsCount,
+    sessionsCount,
+    Number(expiredBeforeCleanup || 0),
+    measuredAt,
+    measuredAt
+  ).run();
+
+  return {
+    written: true,
+    databaseSizeBytes,
+    assetsCount,
+    sessionsCount,
+    growthBytes: growth.growthBytes,
+    growthRatio: growth.growthRatio,
+    alerts: growth.alerts
+  };
+}
+
+function emptyMonthlyMetric(databaseSizeBytes = 0) {
+  return {
+    written: false,
+    databaseSizeBytes: Number(databaseSizeBytes || 0),
+    assetsCount: null,
+    sessionsCount: null,
+    growthBytes: null,
+    growthRatio: null,
+    alerts: []
+  };
+}
+
+export function calculateDatabaseGrowth(previousRows, currentSize) {
+  const previousSize = Number(previousRows?.[0]?.database_size_bytes || 0);
+  const priorSize = Number(previousRows?.[1]?.database_size_bytes || 0);
+  const growthBytes = previousSize > 0 ? Number(currentSize || 0) - previousSize : null;
+  const growthRatio = previousSize > 0 ? growthBytes / previousSize : null;
+  const previousGrowthRatio = priorSize > 0 ? (previousSize - priorSize) / priorSize : null;
+  const alerts = [];
+  if (growthBytes !== null && growthBytes > DATABASE_GROWTH_ALERT_BYTES) {
+    alerts.push('database_growth_over_1mib');
+  }
+  if (
+    growthRatio !== null && growthRatio > DATABASE_GROWTH_ALERT_RATIO &&
+    previousGrowthRatio !== null && previousGrowthRatio > DATABASE_GROWTH_ALERT_RATIO
+  ) {
+    alerts.push('database_growth_over_20_percent_two_months');
+  }
+  return { growthBytes, growthRatio, previousGrowthRatio, alerts };
+}
 
 async function handleApi(request, env, url) {
   const pathname = url.pathname;
@@ -4432,7 +4599,7 @@ async function requireOptionalSession(request, env) {
   const tokenHash = await sha256(rawToken + (env.SESSION_SECRET || 'mmc-dev-secret'));
   const session = await env.MMC_DB.prepare(
     `
-      SELECT s.id AS session_id, s.expires_at, u.*
+      SELECT s.id AS session_id, s.expires_at, s.last_seen_at, u.*
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ?
@@ -4448,8 +4615,23 @@ async function requireOptionalSession(request, env) {
     return null;
   }
 
-  await env.MMC_DB.prepare('UPDATE sessions SET last_seen_at = ? WHERE id = ?').bind(nowIso(), session.session_id).run();
+  const nowMs = Date.now();
+  if (shouldWriteSessionLastSeen(session.last_seen_at, nowMs)) {
+    const now = new Date(nowMs).toISOString();
+    const cutoff = new Date(nowMs - SESSION_LAST_SEEN_WRITE_INTERVAL_MS).toISOString();
+    await env.MMC_DB.prepare(
+      `UPDATE sessions
+       SET last_seen_at = ?
+       WHERE id = ?
+         AND (last_seen_at IS NULL OR julianday(last_seen_at) IS NULL OR last_seen_at <= ?)`
+    ).bind(now, session.session_id, cutoff).run();
+  }
   return { user: session };
+}
+
+export function shouldWriteSessionLastSeen(lastSeenAt, nowMs = Date.now()) {
+  const lastSeenMs = new Date(lastSeenAt).getTime();
+  return !Number.isFinite(lastSeenMs) || nowMs - lastSeenMs >= SESSION_LAST_SEEN_WRITE_INTERVAL_MS;
 }
 
 async function requireSession(request, env) {

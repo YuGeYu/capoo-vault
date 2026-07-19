@@ -131,7 +131,6 @@ CREATE TABLE IF NOT EXISTS billing_orders (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_folders_status ON folders(status);
 CREATE INDEX IF NOT EXISTS idx_folders_owner_user_id ON folders(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_assets_folder_id ON assets(folder_id);

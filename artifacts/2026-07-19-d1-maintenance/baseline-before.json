@@ -1,0 +1,157 @@
+[
+  {
+    "results": [
+      {
+        "cutoff_iso": "2026-07-19T03:23:56.541Z"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.1639
+      },
+      "duration": 0.1639,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3706880,
+      "rows_read": 0,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  },
+  {
+    "results": [
+      {
+        "sessions_count": 170,
+        "expired_sessions": 142,
+        "active_sessions": 28
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.1948
+      },
+      "duration": 0.1948,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3706880,
+      "rows_read": 170,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  },
+  {
+    "results": [
+      {
+        "assets_count": 5224
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.1747
+      },
+      "duration": 0.1747,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3706880,
+      "rows_read": 5224,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  },
+  {
+    "results": [
+      {
+        "seq": 0,
+        "name": "idx_sessions_token_hash",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 1,
+        "name": "idx_sessions_user_id",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 2,
+        "name": "sqlite_autoindex_sessions_2",
+        "unique": 1,
+        "origin": "u",
+        "partial": 0
+      },
+      {
+        "seq": 3,
+        "name": "sqlite_autoindex_sessions_1",
+        "unique": 1,
+        "origin": "pk",
+        "partial": 0
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.0903
+      },
+      "duration": 0.0903,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3706880,
+      "rows_read": 0,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  },
+  {
+    "results": [
+      {
+        "id": 3,
+        "parent": 0,
+        "notused": 39,
+        "detail": "SEARCH s USING INDEX sqlite_autoindex_sessions_2 (token_hash=?)"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "NRT",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.0829
+      },
+      "duration": 0.0829,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 3706880,
+      "rows_read": 0,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
