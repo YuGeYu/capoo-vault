@@ -206,8 +206,11 @@ export function renderBetaHomePage() {
     </a>
   `;
 
+  const isStandaloneToolHref = (href) =>
+    String(href || '').startsWith('/tools/') && String(href || '').endsWith('/');
+
   const betaToolCard = (tool) => `
-    <a href="${attr(tool.href)}" data-link class="beta-tool-card">
+    <a href="${attr(tool.href)}"${isStandaloneToolHref(tool.href) ? '' : ' data-link'} class="beta-tool-card">
       <div class="beta-tool-icon">
         <i class="fas ${tool.icon}"></i>
       </div>
