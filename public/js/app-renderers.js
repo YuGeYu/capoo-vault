@@ -20,6 +20,7 @@ export const HOME_RECOMMEND_TOOLS = [
   { badge: '站内工具', title: '灵感工坊', summary: '随机文案、每日早报、壁纸、二维码和生活查询。', href: '/tools/inspiration', icon: 'fa-sparkles' },
   { badge: '音乐工具', title: '慢慢听歌', summary: '搜索歌曲、收藏、看歌词，站内直接播放。', href: '/tools/music', icon: 'fa-headphones' },
   { badge: '趣味小游戏', title: '咖波连连看', summary: '用站内表情包生成牌面，限时连线消除。', href: '/tools/link-match', icon: 'fa-puzzle-piece' },
+  { badge: '趣味小游戏', title: '咖波节奏拍', summary: '点按或滑过全屏分区，让咖波跟着节拍发声并触发几何特效。', href: '/tools/capoo-tap/', icon: 'fa-music' },
   { badge: '趣味测试', title: 'SBTI 人格测试', summary: '轻松向人格测试，做完直接看结果。', href: '/tools/sbti/', icon: 'fa-heart' },
   { badge: '趣味测试', title: 'CSTI 人格测试', summary: '偏 CS 对局风格的轻量测试。', href: '/tools/csti/', icon: 'fa-crosshairs' },
   { badge: '趣味测试', title: 'YSTI 原神人格测试', summary: '原神主题人格测试和角色画像。', href: '/tools/ysti/', icon: 'fa-star' }
@@ -659,7 +660,7 @@ export async function renderLinkMatchPage() {
 export function renderToolsListPage() {
   setPageMeta({
     title: '工具列表',
-    description: '猫猫虫咖波表情包仓库工具列表，集中进入 AI 聊天、AI 抠图、慢慢听歌、灵感工坊和趣味测试。',
+    description: '猫猫虫咖波表情包仓库工具列表，集中进入 AI 聊天、AI 抠图、慢慢听歌、咖波节奏拍、灵感工坊和趣味测试。',
     path: '/tools/list'
   });
   app.innerHTML = `
@@ -674,7 +675,7 @@ export function renderToolsListPage() {
         <div class="site-info-hero-text">
           <span class="site-info-kicker">工具</span>
           <h2>这里整理了目前可用的小工具</h2>
-          <p>现在可以直接使用 AI 聊天、AI 抠图、灵感工坊、慢慢听歌、咖波连连看、SBTI 人格测试、CSTI 人格测试和 YSTI 原神人格测试，想用哪个就点进去即可。</p>
+          <p>现在可以直接使用 AI 聊天、AI 抠图、灵感工坊、慢慢听歌、咖波连连看、咖波节奏拍、SBTI 人格测试、CSTI 人格测试和 YSTI 原神人格测试，想用哪个就点进去即可。</p>
         </div>
         <div class="review-button-row">
           <a class="site-info-backlink" href="/" data-link>返回首页</a>
@@ -728,6 +729,14 @@ export function renderToolsListPage() {
           href: '/tools/link-match',
           actionText: '开始游戏',
           dataLink: true
+        })}
+        ${toolListCard({
+          badge: '趣味小游戏',
+          title: '咖波节奏拍',
+          summary: '点按或滑过全屏分区，让咖波跟着节拍发声并触发几何特效。',
+          href: '/tools/capoo-tap/',
+          actionText: '开始玩',
+          dataLink: false
         })}
         ${toolListCard({
           badge: '趣味测试',

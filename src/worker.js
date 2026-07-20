@@ -62,14 +62,15 @@ const SEO_FIXED_PAGES = [
   { path: '/', title: SITE_DEFAULT_NAME, description: '猫猫虫咖波表情包仓库，按分类浏览和搜索图片、表情包与视频内容，支持预览、收藏、评论与下载。', priority: '1.0', changefreq: 'daily' },
   { path: '/site-info', title: `${SITE_DEFAULT_NAME} - 站内公告与站务`, description: '查看猫猫虫咖波表情包仓库的站内公告、投稿说明、侵权删除方式和站务信息。', priority: '0.7', changefreq: 'weekly' },
   { path: '/app', title: `${SITE_DEFAULT_NAME} - 安卓 APP 下载`, description: '下载猫猫虫咖波表情包仓库安卓 APP，支持手机端浏览、预览、投稿和下载。', priority: '0.8', changefreq: 'weekly' },
-  { path: '/tools/list', title: `${SITE_DEFAULT_NAME} - 工具列表`, description: '猫猫虫咖波表情包仓库工具列表，集中进入 AI 聊天、AI 抠图、慢慢听歌、灵感工坊和趣味测试。', priority: '0.8', changefreq: 'weekly' }
+  { path: '/tools/list', title: `${SITE_DEFAULT_NAME} - 工具列表`, description: '猫猫虫咖波表情包仓库工具列表，集中进入 AI 聊天、AI 抠图、慢慢听歌、咖波节奏拍、灵感工坊和趣味测试。', priority: '0.8', changefreq: 'weekly' }
 ];
 const SEO_TOOL_PAGES = [
   { path: '/tools/remove-bg', title: `${SITE_DEFAULT_NAME} - AI 抠图`, description: '上传图片后在浏览器内完成 AI 抠图和去背景预览，登录用户可按每日额度下载结果。', priority: '0.7', changefreq: 'weekly' },
   { path: '/tools/ai-chat', title: `${SITE_DEFAULT_NAME} - AI 聊天`, description: '站内 AI 聊天工具，可咨询网站使用问题、分析图片内容、辅助表情包命名和分类说明。', priority: '0.7', changefreq: 'weekly' },
   { path: '/tools/music', title: `${SITE_DEFAULT_NAME} - 慢慢听歌`, description: '慢慢听歌是站内音乐播放器，支持歌曲搜索、播放、收藏、历史记录和歌词查看。', priority: '0.7', changefreq: 'weekly' },
   { path: '/tools/inspiration', title: `${SITE_DEFAULT_NAME} - 灵感工坊`, description: '灵感工坊提供随机文案、每日早报、壁纸、二维码、号码归属地和显卡排行等轻量工具。', priority: '0.7', changefreq: 'weekly' },
-  { path: '/tools/link-match', title: `${SITE_DEFAULT_NAME} - 咖波连连看`, description: '咖波连连看使用站内公开表情包生成牌面，支持限时连线消除、提示、洗牌和分数记录。', priority: '0.7', changefreq: 'weekly' }
+  { path: '/tools/link-match', title: `${SITE_DEFAULT_NAME} - 咖波连连看`, description: '咖波连连看使用站内公开表情包生成牌面，支持限时连线消除、提示、洗牌和分数记录。', priority: '0.7', changefreq: 'weekly' },
+  { path: '/tools/capoo-tap/', title: `${SITE_DEFAULT_NAME} - 咖波节奏拍`, description: '点按或滑过全屏分区，让咖波跟着节拍发声并触发几何特效。', priority: '0.7', changefreq: 'weekly' }
 ];
 const SEO_TEST_PAGES = [
   { path: '/tools/sbti/', title: 'SBTI 人格测试', description: 'SBTI 人格测试是轻松向人格测试，完成题目后查看人格代号、结果说明和维度评分。', priority: '0.6', changefreq: 'monthly' },
