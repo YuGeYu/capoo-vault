@@ -1,5 +1,8 @@
-import { state, escape, attr, formatDate } from './app-support.js';
+import { state, api, escape, attr, formatDate, normalize } from './app-support.js';
 import { visibleFolders, HOME_RECOMMEND_TOOLS, todayKey } from './app-renderers.js';
+
+export const HOME_PAGE_SIZE = 24;
+const HOME_API_PAGE_SIZE = 100;
 
 export function folderIdentity(folder) {
   return String(folder?.id || folder?.slug || folder?.name || '');
@@ -15,7 +18,9 @@ function compareNames(a, b) {
 }
 
 function byPublishedDesc(a, b) {
-  return folderPublishedTime(b) - folderPublishedTime(a) || compareNames(a, b);
+  return folderPublishedTime(b) - folderPublishedTime(a)
+    || folderIdentity(b).localeCompare(folderIdentity(a), 'zh-CN')
+    || compareNames(a, b);
 }
 
 function byViewsDesc(a, b) {
@@ -84,11 +89,14 @@ function betaCoverMedia(folder, { featured = false } = {}) {
 
 export function renderBetaHomePage() {
   const site = state.bootstrap?.site || {};
-  const allFolders = visibleFolders();
   const viewer = state.bootstrap?.viewer;
 
   // 获取当前频道，默认为推荐
   const currentChannel = state.betaChannel || 'recommend';
+  const folderSource = currentChannel === 'latest'
+    ? (state.homeFolders || state.bootstrap?.folders || [])
+    : (state.bootstrap?.folders || []);
+  const allFolders = visibleFolders(folderSource);
 
   let folders = [...allFolders];
   let channelTitle = '为你精选';
@@ -238,8 +246,35 @@ export function renderBetaHomePage() {
       </section>
     `;
   } else {
-    const displayFolders = folders.slice(0, 24);
+    const visibleCount = currentChannel === 'latest'
+      ? Math.min(state.homeVisibleCount, folders.length)
+      : Math.min(HOME_PAGE_SIZE, folders.length);
+    const displayFolders = folders.slice(0, visibleCount);
     const showFeatured = currentChannel === 'recommend' && !state.searchQuery && featuredFolder;
+    const loadedCount = state.homeFolders?.length || 0;
+    const totalCount = Math.max(loadedCount, Number(state.homeFoldersTotal || 0));
+    const hasUnloadedFolders = currentChannel === 'latest' && state.homeFoldersHasMore;
+    const hasMore = currentChannel === 'latest'
+      && (displayFolders.length < folders.length || hasUnloadedFolders);
+    const remaining = Math.max(0, totalCount - displayFolders.length);
+    const loadMoreLabel = state.searchQuery && hasUnloadedFolders
+      ? '继续查找更多作品'
+      : `更多作品（还剩 ${remaining} 个）`;
+    const latestProgress = currentChannel === 'latest' && folders.length
+      ? `<span class="beta-section-count">已展示 ${displayFolders.length} / ${hasUnloadedFolders ? totalCount : folders.length} 个作品</span>`
+      : '';
+    const latestControls = currentChannel === 'latest' && folders.length ? `
+      <div class="beta-load-more-wrapper">
+        ${hasMore ? `
+          <button class="beta-load-more-btn" type="button" data-beta-load-more aria-label="加载更多作品" aria-busy="${state.homeLoadBusy ? 'true' : 'false'}" ${state.homeLoadBusy ? 'disabled' : ''}>
+            <i class="fas ${state.homeLoadBusy ? 'fa-spinner fa-spin' : 'fa-chevron-down'}" aria-hidden="true"></i>
+            <span>${state.homeLoadBusy ? '正在加载更多作品' : loadMoreLabel}</span>
+          </button>
+        ` : `<p class="beta-load-more-complete">已展示全部 ${folders.length} 个作品</p>`}
+        ${state.homeLoadError ? `<p class="beta-load-more-error" role="alert">${escape(state.homeLoadError)}</p>` : ''}
+        <p class="beta-load-more-status" aria-live="polite">${escape(state.homeLoadStatus)}</p>
+      </div>
+    ` : '';
 
     mainContent = `
       ${showFeatured ? `
@@ -266,10 +301,12 @@ export function renderBetaHomePage() {
       <section class="beta-home-section">
         <div class="beta-section-head">
           <h3><i class="fas ${currentChannel === 'latest' ? 'fa-clock' : currentChannel === 'popular' ? 'fa-fire' : currentChannel === 'tools' ? 'fa-wrench' : 'fa-star'}"></i> ${channelTitle}</h3>
+          ${latestProgress}
         </div>
         <div class="beta-folder-grid">
           ${displayFolders.map(betaFolderCard).join('')}
         </div>
+        ${latestControls}
       </section>
     `;
   }
@@ -300,7 +337,10 @@ export function renderBetaHomePage() {
       e.preventDefault();
       const value = betaSearchInput.value.trim();
       state.searchDraft = value;
-      state.searchQuery = value.toLowerCase();
+      state.searchQuery = normalize(value);
+      state.homeVisibleCount = HOME_PAGE_SIZE;
+      state.homeLoadError = '';
+      state.homeLoadStatus = '';
       renderBetaHomePage();
     };
 
@@ -309,6 +349,9 @@ export function renderBetaHomePage() {
       if (!betaSearchInput.value.trim()) {
         state.searchDraft = '';
         state.searchQuery = '';
+        state.homeVisibleCount = HOME_PAGE_SIZE;
+        state.homeLoadError = '';
+        state.homeLoadStatus = '';
         renderBetaHomePage();
       }
     };
@@ -319,8 +362,50 @@ export function renderBetaHomePage() {
     btn.onclick = () => {
       const channel = btn.dataset.betaChannel;
       state.betaChannel = channel;
+      state.homeVisibleCount = HOME_PAGE_SIZE;
+      state.homeLoadError = '';
+      state.homeLoadStatus = '';
       renderBetaHomePage();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
   });
+
+  const loadMoreButton = document.querySelector('[data-beta-load-more]');
+  if (loadMoreButton) {
+    loadMoreButton.onclick = async () => {
+      if (state.homeLoadBusy) return;
+      const currentFolders = visibleFolders(state.homeFolders || []);
+      const desiredCount = state.homeVisibleCount + HOME_PAGE_SIZE;
+      if (state.homeVisibleCount < currentFolders.length) {
+        state.homeVisibleCount = Math.min(desiredCount, currentFolders.length);
+        state.homeLoadStatus = `已加载 ${state.homeVisibleCount} 个作品`;
+        renderBetaHomePage();
+        return;
+      }
+
+      if (!state.homeFoldersHasMore) return;
+
+      state.homeLoadBusy = true;
+      state.homeLoadError = '';
+      state.homeLoadStatus = '';
+      renderBetaHomePage();
+      try {
+        const offset = Number(state.homeFoldersNextOffset || 0);
+        const page = await api(`/api/public/folders?limit=${HOME_API_PAGE_SIZE}&offset=${offset}`);
+        const unique = new Map((state.homeFolders || []).map(folder => [folderIdentity(folder), folder]));
+        (page.folders || []).forEach(folder => unique.set(folderIdentity(folder), folder));
+        state.homeFolders = [...unique.values()].sort(byPublishedDesc);
+        state.homeFoldersTotal = Number(page.total ?? state.homeFolders.length);
+        state.homeFoldersNextOffset = Number(page.offset ?? offset) + (page.folders?.length || 0);
+        state.homeFoldersHasMore = Boolean(page.hasMore);
+        state.homeVisibleCount = Math.min(desiredCount, visibleFolders(state.homeFolders).length);
+        state.homeLoadStatus = `已加载 ${state.homeVisibleCount} 个作品`;
+      } catch (error) {
+        state.homeLoadError = error?.message || '加载失败，请重试。';
+      } finally {
+        state.homeLoadBusy = false;
+        renderBetaHomePage();
+      }
+    };
+  }
 }

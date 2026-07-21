@@ -42,6 +42,46 @@
       "sizeScale": 1,
       "sample": "好事正在发生",
       "description": "毛笔手写感，适合情绪短句"
+    },
+    {
+      "id": "zcool-qingke-huangyou",
+      "label": "站酷黄油体",
+      "family": "MMC ZCOOL QingKe HuangYou",
+      "src": "assets/fonts/ZCOOLQingKeHuangYou-Regular.woff2",
+      "weight": 400,
+      "sizeScale": 1,
+      "sample": "今天也要元气满满",
+      "description": "复古醒目，适合俏皮短句"
+    },
+    {
+      "id": "liu-jian-mao-cao",
+      "label": "刘建毛草",
+      "family": "MMC Liu Jian Mao Cao",
+      "src": "assets/fonts/LiuJianMaoCao-Regular.woff2",
+      "weight": 400,
+      "sizeScale": 1,
+      "sample": "随心自在向前走",
+      "description": "潇洒草书，适合有力短句"
+    },
+    {
+      "id": "long-cang",
+      "label": "龙藏体",
+      "family": "MMC Long Cang",
+      "src": "assets/fonts/LongCang-Regular.woff2",
+      "weight": 400,
+      "sizeScale": 1,
+      "sample": "愿所有美好如约而至",
+      "description": "自然手写，适合温暖寄语"
+    },
+    {
+      "id": "zhi-mang-xing",
+      "label": "志莽行",
+      "family": "MMC Zhi Mang Xing",
+      "src": "assets/fonts/ZhiMangXing-Regular.woff2",
+      "weight": 400,
+      "sizeScale": 1,
+      "sample": "保持热爱奔赴山海",
+      "description": "奔放行书，适合情绪表达"
     }
   ]
 }

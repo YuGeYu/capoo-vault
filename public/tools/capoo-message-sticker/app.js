@@ -150,15 +150,41 @@ function updateFontCards() {
 }
 
 function renderFontOptions() {
-  elements.fontOptions.innerHTML = state.fonts.map(font => `
-    <label class="font-option" data-font-id="${font.id}" data-status="idle" data-selected="false" role="radio" aria-checked="false">
-      <input type="radio" name="sticker-font" value="${font.id}" disabled>
-      <span class="font-option-check" aria-hidden="true"><i data-lucide="check"></i></span>
-      <span class="font-option-name">${font.label}</span>
-      <span class="font-option-sample" style="font-family: &quot;${font.family}&quot;, &quot;MMC Noto Sans SC&quot;">${font.sample}</span>
-      <span class="font-option-state">等待加载</span>
-    </label>
-  `).join('');
+  elements.fontOptions.replaceChildren(...state.fonts.map(font => {
+    const label = document.createElement('label');
+    label.className = 'font-option';
+    label.dataset.fontId = font.id;
+    label.dataset.status = 'idle';
+    label.dataset.selected = 'false';
+    label.setAttribute('role', 'radio');
+    label.setAttribute('aria-checked', 'false');
+
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'sticker-font';
+    input.value = font.id;
+    input.disabled = true;
+
+    const check = document.createElement('span');
+    check.className = 'font-option-check';
+    check.setAttribute('aria-hidden', 'true');
+    const icon = document.createElement('i');
+    icon.dataset.lucide = 'check';
+    check.append(icon);
+
+    const name = document.createElement('span');
+    name.className = 'font-option-name';
+    name.textContent = font.label;
+    const sample = document.createElement('span');
+    sample.className = 'font-option-sample';
+    sample.style.fontFamily = `"${font.family}", "MMC Noto Sans SC"`;
+    sample.textContent = font.sample;
+    const status = document.createElement('span');
+    status.className = 'font-option-state';
+    status.textContent = '等待加载';
+    label.append(input, check, name, sample, status);
+    return label;
+  }));
   window.lucide?.createIcons({ attrs: { 'stroke-width': 2 } });
   updateFontCards();
 }
@@ -679,7 +705,7 @@ async function initialize() {
     await renderSelected();
     const preload = () => {
       state.templates.slice(1, 9).forEach(template => loadImage(template.layers[0].src).catch(() => {}));
-      state.fonts.filter(font => font.id !== DEFAULT_FONT_ID).forEach(font => loadFont(font.id).catch(() => {}));
+      state.fonts.filter(font => font.id !== DEFAULT_FONT_ID).slice(0, 3).forEach(font => loadFont(font.id).catch(() => {}));
     };
     if (window.requestIdleCallback) window.requestIdleCallback(preload);
     else setTimeout(preload, 0);

@@ -72,11 +72,19 @@ export async function route() {
       return renderMessagePage('这个分类暂时打不开', error.message);
     }
   }
+  state.homeVisibleCount = 24;
+  state.homeLoadBusy = false;
+  state.homeLoadError = '';
+  state.homeLoadStatus = '';
   renderHomePage();
 }
 
 export async function refreshBootstrap() {
   state.bootstrap = await api('/api/bootstrap');
+  state.homeFolders = [...(state.bootstrap?.folders || [])];
+  state.homeFoldersTotal = Number(state.bootstrap?.foldersTotal ?? state.homeFolders.length);
+  state.homeFoldersNextOffset = state.homeFolders.length;
+  state.homeFoldersHasMore = state.homeFoldersNextOffset < state.homeFoldersTotal;
 }
 
 export async function loadDashboardData() {

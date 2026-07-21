@@ -84,6 +84,78 @@ const fonts = [
     licenseUrl: `https://raw.githubusercontent.com/google/fonts/${GOOGLE_FONTS_COMMIT}/ofl/mashanzheng/OFL.txt`,
     licenseSha256: 'd7bdb1cee215b689e23c2f95672a6084c790542170648267a55114103d756a08',
     commit: GOOGLE_FONTS_COMMIT
+  },
+  {
+    id: 'zcool-qingke-huangyou',
+    label: '站酷黄油体',
+    family: 'MMC ZCOOL QingKe HuangYou',
+    sample: '今天也要元气满满',
+    description: '复古醒目，适合俏皮短句',
+    weight: 400,
+    sizeScale: 1,
+    sourceName: 'ZCOOLQingKeHuangYou-Regular.ttf',
+    sourceUrl: 'https://raw.githubusercontent.com/google/fonts/7f1b83ecdae8ccb7507fa6e06396e57bc0a5665d/ofl/zcoolqingkehuangyou/ZCOOLQingKeHuangYou-Regular.ttf',
+    sourceSha256: '54f0c0df4308cd74cd0f2fd3494ae054dbc4a1fd6fa7d71f4807eb4cdd8b4136',
+    outputName: 'ZCOOLQingKeHuangYou-Regular.woff2',
+    licenseName: 'ZCOOLQingKeHuangYou-OFL.txt',
+    licenseSourceName: 'ZCOOLQingKeHuangYou-OFL.txt',
+    licenseUrl: 'https://raw.githubusercontent.com/google/fonts/7f1b83ecdae8ccb7507fa6e06396e57bc0a5665d/ofl/zcoolqingkehuangyou/OFL.txt',
+    licenseSha256: 'f1bce31b817dee01c1e4ef8bc45d8ecb95f01f4abbf0a985007cb3cd0fd8123d',
+    commit: '7f1b83ecdae8ccb7507fa6e06396e57bc0a5665d'
+  },
+  {
+    id: 'liu-jian-mao-cao',
+    label: '刘建毛草',
+    family: 'MMC Liu Jian Mao Cao',
+    sample: '随心自在向前走',
+    description: '潇洒草书，适合有力短句',
+    weight: 400,
+    sizeScale: 1,
+    sourceName: 'LiuJianMaoCao-Regular.ttf',
+    sourceUrl: 'https://raw.githubusercontent.com/google/fonts/1658caeec10ae203e8c3a46e7b4abbe6f129828a/ofl/liujianmaocao/LiuJianMaoCao-Regular.ttf',
+    sourceSha256: 'cab396b91a5b7c0b4005a35891180d06e6751f5ac261fe680aec65c1ae209033',
+    outputName: 'LiuJianMaoCao-Regular.woff2',
+    licenseName: 'LiuJianMaoCao-OFL.txt',
+    licenseSourceName: 'LiuJianMaoCao-OFL.txt',
+    licenseUrl: 'https://raw.githubusercontent.com/google/fonts/1658caeec10ae203e8c3a46e7b4abbe6f129828a/ofl/liujianmaocao/OFL.txt',
+    licenseSha256: 'ff56684b0212481e7c3886c26d5a655de9b211c8119e5ccc756138a97b066acc',
+    commit: '1658caeec10ae203e8c3a46e7b4abbe6f129828a'
+  },
+  {
+    id: 'long-cang',
+    label: '龙藏体',
+    family: 'MMC Long Cang',
+    sample: '愿所有美好如约而至',
+    description: '自然手写，适合温暖寄语',
+    weight: 400,
+    sizeScale: 1,
+    sourceName: 'LongCang-Regular.ttf',
+    sourceUrl: 'https://raw.githubusercontent.com/google/fonts/35e5529ffaf259a96693b048d9d97cdaa76b6837/ofl/longcang/LongCang-Regular.ttf',
+    sourceSha256: 'e5bf2c3f24ef2327c6f136d8f73e2f9dfdf44896fdbeb35a9515f44777bb91bc',
+    outputName: 'LongCang-Regular.woff2',
+    licenseName: 'LongCang-OFL.txt',
+    licenseSourceName: 'LongCang-OFL.txt',
+    licenseUrl: 'https://raw.githubusercontent.com/google/fonts/35e5529ffaf259a96693b048d9d97cdaa76b6837/ofl/longcang/OFL.txt',
+    licenseSha256: '603546b7219a94bb59bf8294458194a5010119486354092b66a09a3fd61aeacc',
+    commit: '35e5529ffaf259a96693b048d9d97cdaa76b6837'
+  },
+  {
+    id: 'zhi-mang-xing',
+    label: '志莽行',
+    family: 'MMC Zhi Mang Xing',
+    sample: '保持热爱奔赴山海',
+    description: '奔放行书，适合情绪表达',
+    weight: 400,
+    sizeScale: 1,
+    sourceName: 'ZhiMangXing-Regular.ttf',
+    sourceUrl: 'https://raw.githubusercontent.com/google/fonts/187e2123ad2710ad8c2fa9955332fe9073e834b1/ofl/zhimangxing/ZhiMangXing-Regular.ttf',
+    sourceSha256: '644e0cae9b40f0b10ab729a01bd32032e3973bac22be3dccae01bf6ae7fde969',
+    outputName: 'ZhiMangXing-Regular.woff2',
+    licenseName: 'ZhiMangXing-OFL.txt',
+    licenseSourceName: 'ZhiMangXing-OFL.txt',
+    licenseUrl: 'https://raw.githubusercontent.com/google/fonts/187e2123ad2710ad8c2fa9955332fe9073e834b1/ofl/zhimangxing/OFL.txt',
+    licenseSha256: '10947328199e369a3e6b4a67e8e5507ed99d5bbb264a1f156415aa9b665e4d15',
+    commit: '187e2123ad2710ad8c2fa9955332fe9073e834b1'
   }
 ];
 
@@ -99,7 +171,7 @@ async function fetchPinned(url, target, expectedHash) {
     body = null;
   }
   if (!body || sha256(body) !== expectedHash) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(240_000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(600_000) });
     if (!response.ok) throw new Error(`下载失败 ${response.status}: ${url}`);
     body = Buffer.from(await response.arrayBuffer());
     await writeFile(target, body);

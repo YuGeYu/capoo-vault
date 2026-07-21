@@ -52,6 +52,50 @@
 - License: SIL Open Font License 1.1, included in `assets/fonts/MaShanZheng-OFL.txt`
 - Transformation: same fixed `pyftsubset` Unicode ranges as the Noto fonts.
 
+## ZCOOL QingKe HuangYou
+
+- Upstream: https://github.com/google/fonts
+- Fixed commit: `7f1b83ecdae8ccb7507fa6e06396e57bc0a5665d`
+- Source file: `ofl/zcoolqingkehuangyou/ZCOOLQingKeHuangYou-Regular.ttf`
+- Source SHA-256: `54f0c0df4308cd74cd0f2fd3494ae054dbc4a1fd6fa7d71f4807eb4cdd8b4136`
+- Local file: `assets/fonts/ZCOOLQingKeHuangYou-Regular.woff2`
+- Local SHA-256: `2cd7a2705b6f85d24fc11813ea0022d04f0db1c52b1c2c2bc16aa92793ca9829`
+- License: SIL Open Font License 1.1, included in `assets/fonts/ZCOOLQingKeHuangYou-OFL.txt`
+- Transformation: same fixed `pyftsubset` Unicode ranges as the Noto fonts.
+
+## Liu Jian Mao Cao
+
+- Upstream: https://github.com/google/fonts
+- Fixed commit: `1658caeec10ae203e8c3a46e7b4abbe6f129828a`
+- Source file: `ofl/liujianmaocao/LiuJianMaoCao-Regular.ttf`
+- Source SHA-256: `cab396b91a5b7c0b4005a35891180d06e6751f5ac261fe680aec65c1ae209033`
+- Local file: `assets/fonts/LiuJianMaoCao-Regular.woff2`
+- Local SHA-256: `fa381bc35986608756fe4447ff6e2ef18063d87598e6c73f5a049376d1c52172`
+- License: SIL Open Font License 1.1, included in `assets/fonts/LiuJianMaoCao-OFL.txt`
+- Transformation: same fixed `pyftsubset` Unicode ranges as the Noto fonts.
+
+## Long Cang
+
+- Upstream: https://github.com/google/fonts
+- Fixed commit: `35e5529ffaf259a96693b048d9d97cdaa76b6837`
+- Source file: `ofl/longcang/LongCang-Regular.ttf`
+- Source SHA-256: `e5bf2c3f24ef2327c6f136d8f73e2f9dfdf44896fdbeb35a9515f44777bb91bc`
+- Local file: `assets/fonts/LongCang-Regular.woff2`
+- Local SHA-256: `e67337fb4722a7effcb39e53a436b484c64317b4bace8b9a9cabd9350a01ee9e`
+- License: SIL Open Font License 1.1, included in `assets/fonts/LongCang-OFL.txt`
+- Transformation: same fixed `pyftsubset` Unicode ranges as the Noto fonts.
+
+## Zhi Mang Xing
+
+- Upstream: https://github.com/google/fonts
+- Fixed commit: `187e2123ad2710ad8c2fa9955332fe9073e834b1`
+- Source file: `ofl/zhimangxing/ZhiMangXing-Regular.ttf`
+- Source SHA-256: `644e0cae9b40f0b10ab729a01bd32032e3973bac22be3dccae01bf6ae7fde969`
+- Local file: `assets/fonts/ZhiMangXing-Regular.woff2`
+- Local SHA-256: `04e301c03a792561986a200a590eb763a91e11a15cd452041484009f3d03fc46`
+- License: SIL Open Font License 1.1, included in `assets/fonts/ZhiMangXing-OFL.txt`
+- Transformation: same fixed `pyftsubset` Unicode ranges as the Noto fonts.
+
 ## fflate
 
 - Version: `0.8.3`

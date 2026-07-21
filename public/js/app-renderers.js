@@ -1380,9 +1380,9 @@ export function folderCard(folder) {
   `;
 }
 
-export function visibleFolders() {
+export function visibleFolders(source = state.bootstrap?.folders || []) {
   const query = state.searchQuery;
-  const folders = [...(state.bootstrap?.folders || [])].filter(folder => {
+  const folders = [...source].filter(folder => {
     if (!query) return true;
     return [
       folder.name,
@@ -1747,6 +1747,9 @@ const renderClassicHomePage = function () {
 export function applyHomeSearch(value, { rerender = false, scroll = false } = {}) {
   state.searchDraft = value || '';
   state.searchQuery = normalize(state.searchDraft);
+  state.homeVisibleCount = 24;
+  state.homeLoadError = '';
+  state.homeLoadStatus = '';
   if (rerender || !refreshHomeSearchResults()) {
     renderHomePage();
   }

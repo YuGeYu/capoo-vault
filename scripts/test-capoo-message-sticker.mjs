@@ -73,9 +73,9 @@ async function main() {
   assert.ok(initialCanvas.opaquePixels > 5000, '初始 Canvas 不能空白');
   assert.deepEqual(forbiddenRequests, [], `编辑器不应请求 LINE 运行时资源：${forbiddenRequests.join(', ')}`);
 
-  await page.waitForFunction(() => [...document.querySelectorAll('.font-option')].length === 4 && [...document.querySelectorAll('.font-option')].every(option => option.dataset.status === 'ready'));
+  await page.waitForFunction(() => [...document.querySelectorAll('.font-option')].length === 8 && [...document.querySelectorAll('.font-option')].every(option => option.dataset.status !== 'loading'));
   const fontOptions = await page.locator('.font-option').all();
-  assert.equal(fontOptions.length, 4, '必须展示 4 款字体');
+  assert.equal(fontOptions.length, 8, '必须展示 8 款字体');
   for (const button of await page.locator('.template-button').all()) {
     for (const font of fontOptions) {
       await button.click();
@@ -131,7 +131,7 @@ async function main() {
   await page.waitForTimeout(120);
   assert.equal(await page.locator('#layout-error').isVisible(), false);
 
-  const fontLabels = ['思源黑体', '思源宋体', '站酷快乐体', '马善政毛笔楷书'];
+  const fontLabels = await Promise.all(fontOptions.map(option => option.locator('.font-option-name').innerText()));
   const gifPaths = [];
   for (let index = 0; index < fontOptions.length; index += 1) {
     await page.locator('[data-template-id="293948094"]').click();

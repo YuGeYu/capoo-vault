@@ -771,7 +771,13 @@ async function handleApi(request, env, url) {
   }
 
   if (pathname === '/api/public/folders' && method === 'GET') {
-    return json({ folders: await getPublicFolders(env) });
+    const limit = parsePublicFolderPageInteger(url.searchParams.get('limit'), 'limit', 24, 1, 500);
+    const offset = parsePublicFolderPageInteger(url.searchParams.get('offset'), 'offset', 0, 0, 1_000_000);
+    const [folders, total] = await Promise.all([
+      getPublicFolders(env, limit, offset),
+      getPublicFolderCount(env)
+    ]);
+    return json({ folders, offset, limit, total, hasMore: offset + folders.length < total });
   }
 
   return json({ error: '接口不存在。' }, 404);
@@ -1354,8 +1360,9 @@ function canAccessAsset(asset, user) {
 
 async function getBootstrapPayload(request, env) {
   const session = await requireOptionalSession(request, env);
-  const [folders, announcements, siteNotice] = await Promise.all([
+  const [folders, foldersTotal, announcements, siteNotice] = await Promise.all([
     getPublicFolders(env, 500),
+    getPublicFolderCount(env),
     getAnnouncements(env, true),
     getSiteSetting(env, 'site_notice', defaultSiteNotice())
   ]);
@@ -1367,11 +1374,12 @@ async function getBootstrapPayload(request, env) {
     name: env.SITE_NAME || '猫猫虫咖波表情包仓库后台版',
       origin: env.SITE_ORIGIN || '',
       allowPublicRegistration: env.ALLOW_PUBLIC_REGISTRATION !== 'false',
-      totalCategories: folders.length,
+      totalCategories: foldersTotal,
       totalAssets
     },
     viewer: session?.user ? await serializeUserWithRemoveBg(env, session.user) : null,
     folders,
+    foldersTotal,
     announcements,
     siteNotice
   };
@@ -4177,17 +4185,34 @@ async function promoteFolderViewBoost(env, owner, folderId) {
   };
 }
 
-async function getPublicFolders(env, limit = 24) {
+function parsePublicFolderPageInteger(value, name, fallback, min, max) {
+  if (value === null || value === '') return fallback;
+  if (!/^\d+$/.test(value)) throw new HttpError(400, `${name} 必须是整数。`);
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number < min || number > max) {
+    throw new HttpError(400, `${name} 必须在 ${min} 到 ${max} 之间。`);
+  }
+  return number;
+}
+
+async function getPublicFolderCount(env) {
+  const row = await env.MMC_DB.prepare(
+    "SELECT COUNT(*) AS total FROM folders WHERE status = 'published'"
+  ).first();
+  return Number(row?.total || 0);
+}
+
+async function getPublicFolders(env, limit = 24, offset = 0) {
   const rows = await env.MMC_DB.prepare(
     `
       SELECT f.*, u.display_name, u.public_id
       FROM folders f
       JOIN users u ON u.id = f.owner_user_id
       WHERE f.status = 'published'
-      ORDER BY datetime(COALESCE(f.published_at, f.updated_at)) DESC
-      LIMIT ?
+      ORDER BY datetime(COALESCE(f.published_at, f.updated_at)) DESC, f.id DESC
+      LIMIT ? OFFSET ?
     `
-  ).bind(limit).all();
+  ).bind(limit, offset).all();
 
   const folders = rows.results || [];
   return serializePublicFolderSummaries(env, folders);

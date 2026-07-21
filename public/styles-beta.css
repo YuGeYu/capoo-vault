@@ -454,6 +454,75 @@
     color: var(--primary-color);
 }
 
+.beta-section-count {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.beta-load-more-wrapper {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 1.5rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+.beta-load-more-btn {
+    display: inline-flex;
+    min-height: 44px;
+    max-width: 100%;
+    padding: 0.65rem 1.25rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    border: 1px solid var(--primary-color);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--primary-color);
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.beta-load-more-btn:hover:not(:disabled) {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.beta-load-more-btn:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+    outline-offset: 3px;
+}
+
+.beta-load-more-btn:disabled {
+    cursor: wait;
+    opacity: 0.7;
+}
+
+.beta-load-more-complete,
+.beta-load-more-error,
+.beta-load-more-status {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.beta-load-more-error {
+    color: #b42318;
+}
+
+.beta-load-more-status:empty {
+    display: none;
+}
+
 .beta-section-head a {
     color: var(--text-muted);
     text-decoration: none;
@@ -847,4 +916,29 @@ body.dark-mode .beta-folder-card:hover {
 
 body.dark-mode .beta-home-footer {
     border-top-color: var(--dark-border);
+}
+
+body.dark-mode .beta-load-more-btn {
+    background: var(--dark-surface);
+    border-color: #ff8da8;
+    color: #ffb4c5;
+}
+
+body.dark-mode .beta-load-more-btn:hover:not(:disabled) {
+    background: #ff8da8;
+    color: #24151b;
+}
+
+body.dark-mode .beta-load-more-error {
+    color: #ffb4ab;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .beta-load-more-btn {
+        transition: none;
+    }
+
+    .beta-load-more-btn .fa-spin {
+        animation: none;
+    }
 }
