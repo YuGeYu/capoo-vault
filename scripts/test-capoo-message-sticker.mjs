@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { unzipSync } from 'fflate';
@@ -26,13 +27,23 @@ async function canvasInfo(page) {
 }
 
 function gifInfo(bytes) {
-  assert.equal(Buffer.from(bytes).subarray(0, 6).toString('ascii'), 'GIF89a', '导出的文件必须是 GIF89a');
-  const reader = new GifReader(Buffer.from(bytes));
+  const buffer = Buffer.from(bytes);
+  assert.equal(buffer.subarray(0, 6).toString('ascii'), 'GIF89a', '导出的文件必须是 GIF89a');
+  const reader = new GifReader(buffer);
   const rgba = Buffer.alloc(reader.width * reader.height * 4);
   reader.decodeAndBlitFrameRGBA(0, rgba);
   let transparentPixels = 0;
   for (let index = 3; index < rgba.length; index += 4) if (rgba[index] === 0) transparentPixels += 1;
-  return { width: reader.width, height: reader.height, frames: reader.numFrames(), transparentPixels };
+  const packed = buffer[10];
+  const paletteSize = (packed & 0x80) ? 2 ** ((packed & 0x07) + 1) : 0;
+  return {
+    width: reader.width,
+    height: reader.height,
+    frames: reader.numFrames(),
+    transparentPixels,
+    paletteSize,
+    sha256: createHash('sha256').update(buffer).digest('hex')
+  };
 }
 
 async function main() {
@@ -132,7 +143,7 @@ async function main() {
     const gifPath = path.join(outputDir, `咖波讯息贴图-01-${fontLabels[index]}.gif`);
     await gif.saveAs(gifPath);
     gifPaths.push(gifPath);
-    const downloadedGif = gifInfo(await (await import('node:fs/promises')).readFile(gifPath));
+    const downloadedGif = gifInfo(await readFile(gifPath));
     assert.equal(downloadedGif.width, 420);
     assert.equal(downloadedGif.height, 350);
     assert.equal(downloadedGif.frames, 1);
@@ -152,7 +163,7 @@ async function main() {
     const gif = await gifDownload;
     const gifPath = path.join(outputDir, `咖波讯息贴图-全模板-${ordinal}-思源黑体.gif`);
     await gif.saveAs(gifPath);
-    const downloadedGif = gifInfo(await (await import('node:fs/promises')).readFile(gifPath));
+    const downloadedGif = gifInfo(await readFile(gifPath));
     assert.equal(downloadedGif.width, 420);
     assert.equal(downloadedGif.height, 350);
     assert.equal(downloadedGif.frames, 1);
@@ -171,12 +182,11 @@ async function main() {
   const zip = await zipDownload;
   const zipPath = path.join(outputDir, await zip.suggestedFilename());
   await zip.saveAs(zipPath);
-  const zipFiles = unzipSync(new Uint8Array(await (await import('node:fs/promises')).readFile(zipPath)));
+  const zipFiles = unzipSync(new Uint8Array(await readFile(zipPath)));
   const names = Object.keys(zipFiles).sort();
   assert.equal(names.length, 2, 'ZIP 必须仅包含已编辑模板');
   assert.ok(names.every(name => name.endsWith('.gif')));
   for (const [name, contents] of Object.entries(zipFiles)) {
-    assert.equal(Buffer.from(contents).subarray(0, 6).toString('ascii'), 'GIF89a', `${name} 不是 GIF89a`);
     const zippedGif = gifInfo(contents);
     assert.equal(zippedGif.width, 420, `${name} 宽度错误`);
     assert.equal(zippedGif.height, 350, `${name} 高度错误`);
