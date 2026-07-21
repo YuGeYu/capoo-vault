@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fff8fb">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="选择咖波贴图，输入自己的文字，实时预览并下载透明 PNG。">
+  <link rel="canonical" href="https://maomaochongmiao.600318.xyz/tools/capoo-message-sticker/">
+  <link rel="preload" href="assets/fonts/NotoSansSC-VariableFont_wght.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <title>咖波讯息贴图制作器 - 猫猫虫咖波表情包仓库</title>
+</head>
+<body>
+  <header class="tool-header">
+    <a class="icon-button back-link" href="/tools/list" aria-label="返回工具列表" title="返回工具列表"><i data-lucide="arrow-left" aria-hidden="true"></i></a>
+    <div class="title-group">
+      <h1>咖波讯息贴图制作器</h1>
+      <span id="save-state">文字只保存在当前浏览器</span>
+    </div>
+    <a class="source-link" href="https://store.line.me/stickershop/product/16897/zh-Hant" target="_blank" rel="noreferrer">素材来源<i data-lucide="external-link" aria-hidden="true"></i></a>
+  </header>
+
+  <main class="workspace" aria-busy="true">
+    <section class="template-panel" aria-labelledby="template-heading">
+      <div class="section-heading"><div><span class="step">01</span><h2 id="template-heading">选择模板</h2></div><span id="template-count">加载中</span></div>
+      <div id="template-grid" class="template-grid" role="listbox" aria-label="咖波贴图模板"></div>
+    </section>
+
+    <section class="preview-panel" aria-labelledby="preview-heading">
+      <div class="section-heading"><div><span class="step">02</span><h2 id="preview-heading">实时预览</h2></div><span id="selected-number">第 1 张</span></div>
+      <div class="canvas-shell">
+        <canvas id="preview-canvas" width="420" height="350" aria-label="当前贴图预览"></canvas>
+        <div id="canvas-loading" class="canvas-loading">正在准备本地字体与素材</div>
+      </div>
+      <p id="preview-state" class="preview-state" aria-live="polite">正在加载</p>
+    </section>
+
+    <section class="editor-panel" aria-labelledby="editor-heading">
+      <div class="section-heading"><div><span class="step">03</span><h2 id="editor-heading">编辑文字</h2></div><span id="draft-count">已编辑 0 张</span></div>
+      <label class="input-label" for="message-input">贴图文字</label>
+      <textarea id="message-input" rows="5" maxlength="100" placeholder="输入想让咖波说的话" disabled></textarea>
+      <div class="input-meta"><span id="character-count">已用 0/100</span><span>支持换行</span></div>
+      <p id="layout-error" class="layout-error" role="alert" hidden></p>
+      <div class="secondary-actions">
+        <button id="restore-button" class="button secondary" type="button" disabled><i data-lucide="rotate-ccw" aria-hidden="true"></i>恢复默认</button>
+        <button id="clear-button" class="button secondary" type="button" disabled><i data-lucide="eraser" aria-hidden="true"></i>清空当前</button>
+      </div>
+      <div class="export-actions">
+        <button id="download-button" class="button primary" type="button" disabled><i data-lucide="download" aria-hidden="true"></i>下载当前 PNG</button>
+        <button id="zip-button" class="button accent" type="button" disabled><i data-lucide="file-archive" aria-hidden="true"></i><span>打包下载（0）</span></button>
+      </div>
+      <button id="clear-all-button" class="text-button" type="button" disabled><i data-lucide="trash-2" aria-hidden="true"></i>清空全部草稿</button>
+      <p id="export-progress" class="export-progress" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <footer class="tool-footer">
+    <p>素材角色版权归原作者 Yara 所有，本工具用于自定义文字与个人下载。</p>
+    <p>图片与文字在浏览器本地合成，不会上传。</p>
+  </footer>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="vendor/lucide.min.js"></script>
+  <script src="vendor/fflate.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

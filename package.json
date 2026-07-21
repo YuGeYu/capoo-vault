@@ -45,6 +45,8 @@
     "android:publish-apk": "node ./scripts/publish-android-apk.mjs"
   },
   "devDependencies": {
+    "fflate": "^0.8.3",
+    "playwright": "^1.61.1",
     "wrangler": "^4.111.0"
   }
 }

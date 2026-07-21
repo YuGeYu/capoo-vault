@@ -37,4 +37,6 @@ wrangler secret put AI_CHAT_API_KEY
 
 仓库内 `public/tools/csti`、`public/tools/sbti`、`public/tools/ysti` 等目录包含从网络收集或第三方作品衍生的图片、角色、人物、游戏和表情包素材。这些素材仅用于原项目展示和历史兼容，不代表维护者拥有再授权权利。
 
+`public/tools/capoo-message-sticker/assets/templates` 包含 LINE 商品 16897 展示的 24 张 Yara 咖波讯息贴图底图与默认文字校准图。这批图片的角色与美术版权归原作者及相关权利人所有，不随项目 MIT License 获得再授权；来源、尺寸、字节数与 SHA-256 见 `docs/2026-07-21-咖波讯息贴图素材来源与校准记录.md`。
+
 复用、再分发、商用或二次发布这些素材前，使用者必须自行确认授权并承担相应责任。若只想复用代码，建议替换为自己拥有授权的素材。
