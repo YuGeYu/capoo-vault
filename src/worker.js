@@ -71,7 +71,7 @@ const SEO_TOOL_PAGES = [
   { path: '/tools/inspiration', title: `${SITE_DEFAULT_NAME} - 灵感工坊`, description: '灵感工坊提供随机文案、每日早报、壁纸、二维码、号码归属地和显卡排行等轻量工具。', priority: '0.7', changefreq: 'weekly' },
   { path: '/tools/link-match', title: `${SITE_DEFAULT_NAME} - 咖波连连看`, description: '咖波连连看使用站内公开表情包生成牌面，支持限时连线消除、提示、洗牌和分数记录。', priority: '0.7', changefreq: 'weekly' },
   { path: '/tools/capoo-tap/', title: `${SITE_DEFAULT_NAME} - 咖波节奏拍`, description: '点按或滑过全屏分区，让咖波跟着节拍发声并触发几何特效。', priority: '0.7', changefreq: 'weekly' },
-  { path: '/tools/capoo-message-sticker/', title: '咖波讯息贴图制作器 - 猫猫虫咖波表情包仓库', description: '选择咖波贴图，输入自己的文字，实时预览并下载透明 PNG。', priority: '0.7', changefreq: 'weekly' }
+  { path: '/tools/capoo-message-sticker/', title: '咖波讯息贴图制作器 - 猫猫虫咖波表情包仓库', description: '选择咖波贴图和字体，输入自己的文字，实时预览并下载透明 GIF。', priority: '0.7', changefreq: 'weekly' }
 ];
 const SEO_TEST_PAGES = [
   { path: '/tools/sbti/', title: 'SBTI 人格测试', description: 'SBTI 人格测试是轻松向人格测试，完成题目后查看人格代号、结果说明和维度评分。', priority: '0.6', changefreq: 'monthly' },

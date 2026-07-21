@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#fff8fb">
   <meta name="color-scheme" content="light">
-  <meta name="description" content="选择咖波贴图，输入自己的文字，实时预览并下载透明 PNG。">
+  <meta name="description" content="选择咖波贴图，输入自己的文字，选择喜欢的字体并下载透明 GIF。">
   <link rel="canonical" href="https://maomaochongmiao.600318.xyz/tools/capoo-message-sticker/">
   <link rel="preload" href="assets/fonts/NotoSansSC-VariableFont_wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
@@ -41,13 +41,18 @@
       <label class="input-label" for="message-input">贴图文字</label>
       <textarea id="message-input" rows="5" maxlength="100" placeholder="输入想让咖波说的话" disabled></textarea>
       <div class="input-meta"><span id="character-count">已用 0/100</span><span>支持换行</span></div>
+      <fieldset class="font-fieldset">
+        <legend>贴图字体</legend>
+        <div id="font-options" class="font-options" role="radiogroup" aria-label="选择贴图字体"></div>
+        <p id="font-hint" class="font-hint">个别生僻字会回退为思源黑体。</p>
+      </fieldset>
       <p id="layout-error" class="layout-error" role="alert" hidden></p>
       <div class="secondary-actions">
         <button id="restore-button" class="button secondary" type="button" disabled><i data-lucide="rotate-ccw" aria-hidden="true"></i>恢复默认</button>
         <button id="clear-button" class="button secondary" type="button" disabled><i data-lucide="eraser" aria-hidden="true"></i>清空当前</button>
       </div>
       <div class="export-actions">
-        <button id="download-button" class="button primary" type="button" disabled><i data-lucide="download" aria-hidden="true"></i>下载当前 PNG</button>
+        <button id="download-button" class="button primary" type="button" disabled><i data-lucide="download" aria-hidden="true"></i>下载当前 GIF</button>
         <button id="zip-button" class="button accent" type="button" disabled><i data-lucide="file-archive" aria-hidden="true"></i><span>打包下载（0）</span></button>
       </div>
       <button id="clear-all-button" class="text-button" type="button" disabled><i data-lucide="trash-2" aria-hidden="true"></i>清空全部草稿</button>
@@ -57,7 +62,7 @@
 
   <footer class="tool-footer">
     <p>素材角色版权归原作者 Yara 所有，本工具用于自定义文字与个人下载。</p>
-    <p>图片与文字在浏览器本地合成，不会上传。</p>
+    <p>图片与文字在浏览器本地合成单帧透明 GIF，不会上传。</p>
   </footer>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 

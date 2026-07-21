@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { unzipSync } from 'fflate';
-import sharp from 'sharp';
+import { GifReader } from 'omggif';
 
 const origin = process.env.CAPOO_TOOL_ORIGIN || 'http://127.0.0.1:8791';
-const outputDir = path.resolve('artifacts', 'capoo-message', 'verification');
+const outputDir = path.resolve('artifacts', 'capoo-message', 'gif-font-verification');
 const viewports = [
-  { name: 'phone-375', width: 375, height: 812 },
-  { name: 'phone-430', width: 430, height: 932 },
+  { name: 'phone-375', width: 375, height: 667 },
+  { name: 'phone-390', width: 390, height: 844 },
   { name: 'tablet-768', width: 768, height: 1024 },
   { name: 'landscape-1024', width: 1024, height: 768 },
   { name: 'desktop-1440', width: 1440, height: 900 }
@@ -25,6 +25,15 @@ async function canvasInfo(page) {
   });
 }
 
+function gifInfo(bytes) {
+  const reader = new GifReader(Buffer.from(bytes));
+  const rgba = Buffer.alloc(reader.width * reader.height * 4);
+  reader.decodeAndBlitFrameRGBA(0, rgba);
+  let transparentPixels = 0;
+  for (let index = 3; index < rgba.length; index += 4) if (rgba[index] === 0) transparentPixels += 1;
+  return { width: reader.width, height: reader.height, frames: reader.numFrames(), transparentPixels };
+}
+
 async function main() {
   await rm(outputDir, { recursive: true, force: true });
   await mkdir(outputDir, { recursive: true });
@@ -32,6 +41,8 @@ async function main() {
   const page = await browser.newPage();
   const consoleErrors = [];
   const forbiddenRequests = [];
+  const comboReports = [];
+  const gifReports = [];
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   page.on('pageerror', error => consoleErrors.push(error.message));
   page.on('request', request => {
@@ -50,20 +61,47 @@ async function main() {
   assert.ok(initialCanvas.opaquePixels > 5000, '初始 Canvas 不能空白');
   assert.deepEqual(forbiddenRequests, [], `编辑器不应请求 LINE 运行时资源：${forbiddenRequests.join(', ')}`);
 
+  await page.waitForFunction(() => [...document.querySelectorAll('.font-option')].length === 4 && [...document.querySelectorAll('.font-option')].every(option => option.dataset.status === 'ready'));
+  const fontOptions = await page.locator('.font-option').all();
+  assert.equal(fontOptions.length, 4, '必须展示 4 款字体');
   for (const button of await page.locator('.template-button').all()) {
-    await button.click();
-    await page.waitForTimeout(40);
-    assert.equal(await page.locator('#layout-error').isVisible(), false, `模板 ${await button.getAttribute('data-template-id')} 的默认文字不能溢出`);
-    await page.locator('#message-input').fill('好');
-    await page.waitForTimeout(40);
-    assert.equal(await page.locator('#layout-error').isVisible(), false, `模板 ${await button.getAttribute('data-template-id')} 的短文字不能溢出`);
-    await page.locator('#message-input').fill('第一行\n第二行');
-    await page.waitForTimeout(40);
-    assert.equal(await page.locator('#layout-error').isVisible(), false, `模板 ${await button.getAttribute('data-template-id')} 的两行文字不能溢出`);
-    assert.ok((await canvasInfo(page)).opaquePixels > 5000, `模板 ${await button.getAttribute('data-template-id')} Canvas 为空`);
+    for (const font of fontOptions) {
+      await button.click();
+      await page.locator('#restore-button').click();
+      await font.click();
+      await page.waitForFunction(fontId => document.querySelector(`.font-option[data-font-id="${fontId}"]`)?.dataset.selected === 'true' && document.querySelector('#canvas-loading')?.hidden, await font.getAttribute('data-font-id'));
+      await page.waitForTimeout(80);
+      const combo = { templateId: await button.getAttribute('data-template-id'), fontId: await font.getAttribute('data-font-id') };
+      assert.equal(await page.locator('#layout-error').isVisible(), false, `字体 ${combo.fontId}、模板 ${combo.templateId} 默认文字溢出`);
+      assert.ok((await canvasInfo(page)).opaquePixels > 5000, `字体 ${await font.getAttribute('data-font-id')}、模板 ${await button.getAttribute('data-template-id')} Canvas 为空`);
+      combo.default = { fits: true, opaquePixels: (await canvasInfo(page)).opaquePixels };
+      await page.locator('#message-input').fill('好');
+      await page.waitForTimeout(40);
+      assert.equal(await page.locator('#layout-error').isVisible(), false, `字体 ${combo.fontId}、模板 ${combo.templateId} 短文字溢出`);
+      combo.short = { fits: true };
+      await page.locator('#message-input').fill('简体\n中文');
+      await page.waitForTimeout(40);
+      assert.equal(await page.locator('#layout-error').isVisible(), false, `字体 ${combo.fontId}、模板 ${combo.templateId} 两行文字溢出`);
+      combo.twoLine = { fits: true };
+      comboReports.push(combo);
+    }
   }
   await page.evaluate(() => localStorage.clear());
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.querySelector('.workspace')?.getAttribute('aria-busy') === 'false');
+
+  await page.evaluate(() => {
+    localStorage.setItem('mmc_capoo_message_sticker_drafts_v1', JSON.stringify({ '293948094': '旧版迁移文字' }));
+    localStorage.removeItem('mmc_capoo_message_sticker_drafts_v2');
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.querySelector('.workspace')?.getAttribute('aria-busy') === 'false');
+  assert.equal(await page.locator('#message-input').inputValue(), '旧版迁移文字', 'v1 草稿文字必须无损迁移');
+  assert.equal(await page.locator('.font-option[data-font-id="noto-sans-sc"] input').isChecked(), true, 'v1 草稿迁移默认使用思源黑体');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('mmc_capoo_message_sticker_drafts_v2')).version), 2, '迁移后必须写入 v2');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.querySelector('.workspace')?.getAttribute('aria-busy') === 'false');
 
   await page.locator('#message-input').fill('简体中文测试 ABC 123！？');
   await page.waitForTimeout(120);
@@ -81,16 +119,25 @@ async function main() {
   await page.waitForTimeout(120);
   assert.equal(await page.locator('#layout-error').isVisible(), false);
 
-  const pngDownload = page.waitForEvent('download');
-  await page.locator('#download-button').click();
-  const png = await pngDownload;
-  const pngPath = path.join(outputDir, await png.suggestedFilename());
-  await png.saveAs(pngPath);
-  const pngMetadata = await sharp(pngPath).metadata();
-  assert.equal(pngMetadata.format, 'png');
-  assert.equal(pngMetadata.width, 420);
-  assert.equal(pngMetadata.height, 350);
-  assert.equal(pngMetadata.hasAlpha, true, '导出的 PNG 必须保留透明通道');
+  const fontLabels = ['思源黑体', '思源宋体', '站酷快乐体', '马善政毛笔楷书'];
+  const gifPaths = [];
+  for (let index = 0; index < fontOptions.length; index += 1) {
+    await page.locator('[data-template-id="293948094"]').click();
+    await page.locator('#restore-button').click();
+    await fontOptions[index].click();
+    const gifDownload = page.waitForEvent('download');
+    await page.locator('#download-button').click();
+    const gif = await gifDownload;
+    const gifPath = path.join(outputDir, `咖波讯息贴图-01-${fontLabels[index]}.gif`);
+    await gif.saveAs(gifPath);
+    gifPaths.push(gifPath);
+    const downloadedGif = gifInfo(await (await import('node:fs/promises')).readFile(gifPath));
+    assert.equal(downloadedGif.width, 420);
+    assert.equal(downloadedGif.height, 350);
+    assert.equal(downloadedGif.frames, 1);
+    assert.ok(downloadedGif.transparentPixels > 0, '导出的 GIF 必须保留透明像素');
+    gifReports.push({ filename: path.basename(gifPath), ...downloadedGif, bytes: (await stat(gifPath)).size });
+  }
 
   await page.locator('[data-template-id="293948095"]').click();
   await page.locator('#message-input').fill('两张一起下载');
@@ -104,16 +151,24 @@ async function main() {
   const zipFiles = unzipSync(new Uint8Array(await (await import('node:fs/promises')).readFile(zipPath)));
   const names = Object.keys(zipFiles).sort();
   assert.equal(names.length, 2, 'ZIP 必须仅包含已编辑模板');
-  assert.ok(names.every(name => name.endsWith('.png')));
-  assert.ok(Object.values(zipFiles).every(data => data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47));
+  assert.ok(names.every(name => name.endsWith('.gif')));
+  for (const [name, contents] of Object.entries(zipFiles)) {
+    assert.equal(Buffer.from(contents).subarray(0, 6).toString('ascii'), 'GIF89a', `${name} 不是 GIF89a`);
+    const zippedGif = gifInfo(contents);
+    assert.equal(zippedGif.width, 420, `${name} 宽度错误`);
+    assert.equal(zippedGif.height, 350, `${name} 高度错误`);
+    assert.ok(zippedGif.transparentPixels > 0, `${name} 缺少透明像素`);
+  }
 
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.querySelector('.workspace')?.getAttribute('aria-busy') === 'false');
   await page.locator('[data-template-id="293948095"]').click();
   assert.equal(await page.locator('#message-input').inputValue(), '两张一起下载', '刷新后必须恢复 localStorage 草稿');
 
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await page.goto(`${origin}/tools/capoo-message-sticker/`, { waitUntil: 'networkidle' });
+    await page.goto(`${origin}/tools/capoo-message-sticker/`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.querySelector('.workspace')?.getAttribute('aria-busy') === 'false');
     await page.screenshot({ path: path.join(outputDir, `${viewport.name}.png`), fullPage: true });
     const metrics = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
@@ -129,7 +184,8 @@ async function main() {
 
   assert.deepEqual(consoleErrors, [], `浏览器控制台错误：${consoleErrors.join('\n')}`);
   await browser.close();
-  console.log(JSON.stringify({ origin, png: pngPath, zip: zipPath, zipEntries: names, screenshots: viewports.map(viewport => `${viewport.name}.png`) }, null, 2));
+  await writeFile(path.join(outputDir, 'verification.json'), `${JSON.stringify({ origin, comboCount: comboReports.length, comboReports, gifs: gifReports, zip: { filename: path.basename(zipPath), entries: names }, screenshots: viewports.map(viewport => `${viewport.name}.png`) }, null, 2)}\n`);
+  console.log(JSON.stringify({ origin, comboCount: comboReports.length, gifs: gifPaths, zip: zipPath, zipEntries: names, screenshots: viewports.map(viewport => `${viewport.name}.png`) }, null, 2));
 }
 
 main().catch(error => {

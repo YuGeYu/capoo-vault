@@ -21,7 +21,7 @@ export const HOME_RECOMMEND_TOOLS = [
   { badge: '音乐工具', title: '慢慢听歌', summary: '搜索歌曲、收藏、看歌词，站内直接播放。', href: '/tools/music', icon: 'fa-headphones' },
   { badge: '趣味小游戏', title: '咖波连连看', summary: '用站内表情包生成牌面，限时连线消除。', href: '/tools/link-match', icon: 'fa-puzzle-piece' },
   { badge: '趣味小游戏', title: '咖波节奏拍', summary: '点按或滑过全屏分区，让咖波跟着节拍发声并触发几何特效。', href: '/tools/capoo-tap/', icon: 'fa-music' },
-  { badge: '图片工具', title: '咖波讯息贴图制作器', summary: '选择咖波贴图，输入自己的文字并下载透明 PNG。', href: '/tools/capoo-message-sticker/', icon: 'fa-pen-to-square' },
+  { badge: '图片工具', title: '咖波讯息贴图制作器', summary: '选择咖波贴图和字体，输入自己的文字并下载透明 GIF。', href: '/tools/capoo-message-sticker/', icon: 'fa-pen-to-square' },
   { badge: '趣味测试', title: 'SBTI 人格测试', summary: '轻松向人格测试，做完直接看结果。', href: '/tools/sbti/', icon: 'fa-heart' },
   { badge: '趣味测试', title: 'CSTI 人格测试', summary: '偏 CS 对局风格的轻量测试。', href: '/tools/csti/', icon: 'fa-crosshairs' },
   { badge: '趣味测试', title: 'YSTI 原神人格测试', summary: '原神主题人格测试和角色画像。', href: '/tools/ysti/', icon: 'fa-star' }
@@ -742,7 +742,7 @@ export function renderToolsListPage() {
         ${toolListCard({
           badge: '图片工具',
           title: '咖波讯息贴图制作器',
-          summary: '选择咖波贴图，输入自己的文字，实时预览并下载透明 PNG。',
+          summary: '选择咖波贴图和字体，输入自己的文字，实时预览并下载透明 GIF。',
           href: '/tools/capoo-message-sticker/',
           actionText: '开始制作',
           dataLink: false

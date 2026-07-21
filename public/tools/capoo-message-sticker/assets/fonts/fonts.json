@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "defaultId": "noto-sans-sc",
+  "fallbackId": "noto-sans-sc",
+  "fonts": [
+    {
+      "id": "noto-sans-sc",
+      "label": "思源黑体",
+      "family": "MMC Noto Sans SC",
+      "src": "assets/fonts/NotoSansSC-VariableFont_wght.woff2",
+      "weight": 700,
+      "sizeScale": 1,
+      "sample": "咖波今天也很可爱",
+      "description": "清晰耐读，适合长文字"
+    },
+    {
+      "id": "noto-serif-sc",
+      "label": "思源宋体",
+      "family": "MMC Noto Serif SC",
+      "src": "assets/fonts/NotoSerifSC-VariableFont_wght.woff2",
+      "weight": 700,
+      "sizeScale": 1,
+      "sample": "祝你今天万事顺意",
+      "description": "端正温和，适合通知祝福"
+    },
+    {
+      "id": "zcool-kuaile",
+      "label": "站酷快乐体",
+      "family": "MMC ZCOOL KuaiLe",
+      "src": "assets/fonts/ZCOOLKuaiLe-Regular.woff2",
+      "weight": 400,
+      "sizeScale": 1,
+      "sample": "咖波今天超开心",
+      "description": "活泼圆润，适合可爱短句"
+    },
+    {
+      "id": "ma-shan-zheng",
+      "label": "马善政毛笔楷书",
+      "family": "MMC Ma Shan Zheng",
+      "src": "assets/fonts/MaShanZheng-Regular.woff2",
+      "weight": 400,
+      "sizeScale": 1,
+      "sample": "好事正在发生",
+      "description": "毛笔手写感，适合情绪短句"
+    }
+  ]
+}
