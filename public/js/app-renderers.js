@@ -1747,6 +1747,7 @@ const renderClassicHomePage = function () {
 export function applyHomeSearch(value, { rerender = false, scroll = false } = {}) {
   state.searchDraft = value || '';
   state.searchQuery = normalize(state.searchDraft);
+  state.homeVisibleCount = 24;
   if (rerender || !refreshHomeSearchResults()) {
     renderHomePage();
   }

@@ -15,6 +15,7 @@ export const state = {
   profileActiveTab: 'works',
   theme: localStorage.getItem('theme') || 'light',
   betaChannel: 'recommend',
+  homeVisibleCount: 24,
   searchQuery: '',
   searchDraft: '',
   sortBy: 'published-desc',

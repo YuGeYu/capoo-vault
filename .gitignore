@@ -12,6 +12,7 @@ import-token.txt
 .dev.vars
 .dev.vars.*
 wrangler.production.toml
+wrangler.local.toml
 
 backups/
 *.zip

@@ -848,3 +848,53 @@ body.dark-mode .beta-folder-card:hover {
 body.dark-mode .beta-home-footer {
     border-top-color: var(--dark-border);
 }
+
+/* 加载更多按钮 */
+.beta-load-more-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+    padding: 0.5rem 0;
+}
+
+.beta-load-more-btn {
+    background: var(--surface);
+    color: var(--primary-color);
+    border: 1.5px solid var(--primary-color);
+    min-height: 44px;
+    padding: 0.625rem 2rem;
+    border-radius: 22px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.beta-load-more-btn:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.beta-load-more-end {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+.beta-section-count {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+body.dark-mode .beta-load-more-btn {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+body.dark-mode .beta-load-more-btn:hover {
+    background: var(--primary-color);
+    color: #fff;
+}

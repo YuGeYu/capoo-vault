@@ -63,13 +63,16 @@ export function buildMixedRecommendations(folders, featuredFolder, seed = `${tod
   const featuredIdentity = folderIdentity(featuredFolder);
   const used = new Set(featuredIdentity ? [featuredIdentity] : []);
   const candidates = folders.filter(folder => folder?.slug && folderIdentity(folder) !== featuredIdentity);
+  const totalFolders = candidates.length + (featuredIdentity ? 1 : 0);
+  // Scale limits with available folders, so pagination can work when > 24
+  const cap = Math.max(24, totalFolders);
 
-  takeUnique(target, [...candidates].sort(byPublishedDesc), 8, used);
-  takeUnique(target, [...candidates].sort(byViewsDesc), 16, used);
+  takeUnique(target, [...candidates].sort(byPublishedDesc), Math.min(8, cap), used);
+  takeUnique(target, [...candidates].sort(byViewsDesc), Math.min(16, cap), used);
   takeUnique(target, [...candidates].sort((a, b) =>
     Number(a?.viewCount || 0) - Number(b?.viewCount || 0) || byPublishedDesc(a, b)
-  ), 24, used);
-  takeUnique(target, stableDailyShuffle(candidates, `${seed}:fill`), 24, used);
+  ), Math.min(24, cap), used);
+  takeUnique(target, stableDailyShuffle(candidates, `${seed}:fill`), cap, used);
 
   return stableDailyShuffle(target, seed);
 }
@@ -238,7 +241,10 @@ export function renderBetaHomePage() {
       </section>
     `;
   } else {
-    const displayFolders = folders.slice(0, 24);
+    const displayFolders = folders.slice(0, state.homeVisibleCount);
+    const hasMore = displayFolders.length < folders.length;
+    const remaining = folders.length - displayFolders.length;
+    const loadMoreCount = Math.min(24, remaining);
     const showFeatured = currentChannel === 'recommend' && !state.searchQuery && featuredFolder;
 
     mainContent = `
@@ -266,10 +272,22 @@ export function renderBetaHomePage() {
       <section class="beta-home-section">
         <div class="beta-section-head">
           <h3><i class="fas ${currentChannel === 'latest' ? 'fa-clock' : currentChannel === 'popular' ? 'fa-fire' : currentChannel === 'tools' ? 'fa-wrench' : 'fa-star'}"></i> ${channelTitle}</h3>
+          <span class="beta-section-count">${displayFolders.length} / ${folders.length} 个分类</span>
         </div>
         <div class="beta-folder-grid">
           ${displayFolders.map(betaFolderCard).join('')}
         </div>
+        ${hasMore ? `
+          <div class="beta-load-more-wrapper">
+            <button class="beta-load-more-btn" type="button" data-beta-load-more>
+              <i class="fas fa-chevron-down"></i> 加载更多（还剩 ${remaining} 个）
+            </button>
+          </div>
+        ` : (folders.length > 0 ? `
+          <div class="beta-load-more-wrapper">
+            <p class="beta-load-more-end">— 已展示全部 ${folders.length} 个分类 —</p>
+          </div>
+        ` : '')}
       </section>
     `;
   }
@@ -301,6 +319,7 @@ export function renderBetaHomePage() {
       const value = betaSearchInput.value.trim();
       state.searchDraft = value;
       state.searchQuery = value.toLowerCase();
+      state.homeVisibleCount = 24;
       renderBetaHomePage();
     };
 
@@ -309,6 +328,7 @@ export function renderBetaHomePage() {
       if (!betaSearchInput.value.trim()) {
         state.searchDraft = '';
         state.searchQuery = '';
+        state.homeVisibleCount = 24;
         renderBetaHomePage();
       }
     };
@@ -319,8 +339,18 @@ export function renderBetaHomePage() {
     btn.onclick = () => {
       const channel = btn.dataset.betaChannel;
       state.betaChannel = channel;
+      state.homeVisibleCount = 24;
       renderBetaHomePage();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
   });
+
+  // 绑定加载更多
+  const loadMoreBtn = document.querySelector('[data-beta-load-more]');
+  if (loadMoreBtn) {
+    loadMoreBtn.onclick = () => {
+      state.homeVisibleCount = Math.min(state.homeVisibleCount + 24, (state.bootstrap?.folders?.length || 0));
+      renderBetaHomePage();
+    };
+  }
 }
