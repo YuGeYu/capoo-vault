@@ -1,6 +1,20 @@
 const STORAGE_KEY = 'mmc_capoo_message_sticker_drafts_v1';
-const FONT_FAMILY = 'Noto Sans SC Local';
+const FONT_STORAGE_KEY = 'mmc_capoo_message_sticker_fonts_v1';
+const DEFAULT_FONT = 'Noto Sans SC Local';
 const MAX_CHARACTERS = 100;
+
+const FONT_OPTIONS = [
+  { name: '思源黑体', family: 'Noto Sans SC Local', cssUrl: null },
+  { name: '思源宋体', family: 'Noto Serif SC', cssUrl: 'https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap' },
+  { name: '马山正', family: 'Ma Shan Zheng', cssUrl: 'https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap' },
+  { name: '站酷快乐体', family: 'ZCOOL KuaiLe', cssUrl: 'https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap' },
+  { name: '站酷黄油体', family: 'ZCOOL QingKe HuangYou', cssUrl: 'https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&display=swap' },
+  { name: '刘建毛草', family: 'Liu Jian Mao Cao', cssUrl: 'https://fonts.googleapis.com/css2?family=Liu+Jian+Mao+Cao&display=swap' },
+  { name: '龙藏体', family: 'Long Cang', cssUrl: 'https://fonts.googleapis.com/css2?family=Long+Cang&display=swap' },
+  { name: '志莽行', family: 'Zhi Mang Xing', cssUrl: 'https://fonts.googleapis.com/css2?family=Zhi+Mang+Xing&display=swap' }
+];
+
+const FONT_MAP = new Map(FONT_OPTIONS.map(f => [f.family, f]));
 
 const elements = {
   workspace: document.querySelector('.workspace'),
@@ -11,6 +25,7 @@ const elements = {
   canvas: document.querySelector('#preview-canvas'),
   canvasLoading: document.querySelector('#canvas-loading'),
   previewState: document.querySelector('#preview-state'),
+  fontSelect: document.querySelector('#font-select'),
   input: document.querySelector('#message-input'),
   characterCount: document.querySelector('#character-count'),
   layoutError: document.querySelector('#layout-error'),
@@ -30,6 +45,7 @@ const state = {
   templateMap: new Map(),
   selectedId: '',
   drafts: loadDrafts(),
+  fontChoices: loadFontChoices(),
   images: new Map(),
   fontReady: false,
   renderFits: true,
@@ -54,6 +70,30 @@ function saveDrafts() {
   elements.saveState.textContent = '草稿已保存在当前浏览器';
 }
 
+function loadFontChoices() {
+  try {
+    const value = JSON.parse(localStorage.getItem(FONT_STORAGE_KEY) || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveFontChoices() {
+  localStorage.setItem(FONT_STORAGE_KEY, JSON.stringify(state.fontChoices));
+}
+
+function loadFontCSS(url) {
+  if (!url) return;
+  const id = `font-css-${encodeURIComponent(url)}`;
+  if (document.getElementById(id)) return;
+  const link = document.createElement('link');
+  link.id = id;
+  link.rel = 'stylesheet';
+  link.href = url;
+  document.head.appendChild(link);
+}
+
 function graphemes(value) {
   if (typeof Intl.Segmenter === 'function') {
     return [...new Intl.Segmenter('zh-CN', { granularity: 'grapheme' }).segment(value)].map(item => item.segment);
@@ -71,6 +111,11 @@ function selectedTemplate() {
 
 function templateText(template) {
   return Object.hasOwn(state.drafts, template.id) ? state.drafts[template.id] : template.defaultText;
+}
+
+function templateFont(template) {
+  const family = state.fontChoices[template.id];
+  return family && FONT_MAP.has(family) ? family : DEFAULT_FONT;
 }
 
 function editedTemplates() {
@@ -97,8 +142,8 @@ function loadImage(src) {
   return state.images.get(src);
 }
 
-function setCanvasFont(ctx, config, size) {
-  ctx.font = `${config.weight || 700} ${size}px "${FONT_FAMILY}"`;
+function setCanvasFont(ctx, config, size, fontFamily) {
+  ctx.font = `${config.weight || 700} ${size}px "${fontFamily || DEFAULT_FONT}"`;
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
   ctx.miterLimit = 2;
@@ -154,10 +199,10 @@ function wrapVertical(text, config, size) {
   return { columns, width, fits, size, step };
 }
 
-function fitText(ctx, text, config) {
+function fitText(ctx, text, config, fontFamily) {
   let lastLayout;
   for (let size = config.fontSize; size >= config.minFontSize; size -= 1) {
-    setCanvasFont(ctx, config, size);
+    setCanvasFont(ctx, config, size, fontFamily);
     lastLayout = config.writingMode === 'vertical' ? wrapVertical(text, config, size) : wrapHorizontal(ctx, text, config, size);
     if (lastLayout.fits) return lastLayout;
   }
@@ -196,10 +241,10 @@ function paintVertical(ctx, layout, config) {
   });
 }
 
-function paintText(ctx, text, config) {
+function paintText(ctx, text, config, fontFamily) {
   if (!text) return { fits: true, empty: true };
-  const layout = fitText(ctx, text, config);
-  setCanvasFont(ctx, config, layout.size);
+  const layout = fitText(ctx, text, config, fontFamily);
+  setCanvasFont(ctx, config, layout.size, fontFamily);
   ctx.textAlign = 'center';
   ctx.save();
   const rotation = (config.rotation || 0) * Math.PI / 180;
@@ -216,14 +261,14 @@ function paintText(ctx, text, config) {
   return layout;
 }
 
-async function renderTemplate(template, text, canvas = document.createElement('canvas')) {
+async function renderTemplate(template, text, fontFamily, canvas = document.createElement('canvas')) {
   canvas.width = 420;
   canvas.height = 350;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const layers = [...template.layers].sort((a, b) => a.z - b.z);
   for (const layer of layers) ctx.drawImage(await loadImage(layer.src), 0, 0, canvas.width, canvas.height);
-  const layout = paintText(ctx, text, template.text);
+  const layout = paintText(ctx, text, template.text, fontFamily);
   return { canvas, layout };
 }
 
@@ -232,7 +277,7 @@ async function renderSelected() {
   const template = selectedTemplate();
   if (!template || !state.fontReady) return;
   try {
-    const { layout } = await renderTemplate(template, templateText(template), elements.canvas);
+    const { layout } = await renderTemplate(template, templateText(template), templateFont(template), elements.canvas);
     if (token !== state.renderToken) return;
     state.renderFits = layout.fits;
     elements.canvasLoading.hidden = true;
@@ -311,6 +356,7 @@ function selectTemplate(id, focus = false) {
   state.selectedId = id;
   elements.input.value = templateText(template);
   elements.selectedNumber.textContent = `第 ${template.order} 张`;
+  elements.fontSelect.value = templateFont(template);
   updateCharacterCount();
   updateTemplateStates();
   scheduleRender();
@@ -365,7 +411,7 @@ async function downloadCurrent() {
   updateControls();
   elements.progress.textContent = '正在生成透明 PNG';
   try {
-    const { canvas, layout } = await renderTemplate(template, templateText(template));
+    const { canvas, layout } = await renderTemplate(template, templateText(template), templateFont(template));
     if (!layout.fits) throw new Error('文字太长，请删减');
     downloadBlob(await canvasToBlob(canvas), filenameFor(template, templateText(template)));
     showToast('当前贴图已下载');
@@ -389,7 +435,8 @@ async function downloadZip() {
     elements.progress.textContent = `正在生成 ${index + 1}/${templates.length}：第 ${template.order} 张`;
     try {
       const text = templateText(template);
-      const { canvas, layout } = await renderTemplate(template, text);
+      const fontFamily = templateFont(template);
+      const { canvas, layout } = await renderTemplate(template, text, fontFamily);
       if (!layout.fits) throw new Error('文字太长');
       files[filenameFor(template, text)] = new Uint8Array(await (await canvasToBlob(canvas)).arrayBuffer());
     } catch {
@@ -446,17 +493,43 @@ function bindEvents() {
   elements.clearAll.addEventListener('click', () => {
     if (!confirm('确定清空全部 24 张贴图草稿吗？此操作无法撤销。')) return;
     state.drafts = {};
+    state.fontChoices = {};
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(FONT_STORAGE_KEY);
     renderTemplateButtons();
     selectTemplate(state.selectedId);
     showToast('全部草稿已清空');
   });
   elements.download.addEventListener('click', downloadCurrent);
   elements.zip.addEventListener('click', downloadZip);
+  elements.fontSelect.addEventListener('change', () => {
+    const template = selectedTemplate();
+    if (!template) return;
+    const family = elements.fontSelect.value;
+    if (family && FONT_MAP.has(family)) {
+      state.fontChoices[template.id] = family;
+      if (family !== DEFAULT_FONT) {
+        const font = FONT_MAP.get(family);
+        if (font.cssUrl) loadFontCSS(font.cssUrl);
+      }
+    } else {
+      delete state.fontChoices[template.id];
+    }
+    saveFontChoices();
+    loadFontCSSForFamily(family);
+    scheduleRender();
+  });
+}
+
+function loadFontCSSForFamily(family) {
+  const font = FONT_MAP.get(family);
+  if (font?.cssUrl) loadFontCSS(font.cssUrl);
 }
 
 async function initialize() {
   window.lucide?.createIcons({ attrs: { 'stroke-width': 2 } });
+  // 动态生成字体选项
+  elements.fontSelect.innerHTML = FONT_OPTIONS.map(f => `<option value="${f.family}">${f.name}</option>`).join('');
   bindEvents();
   try {
     const response = await fetch('templates.json');
@@ -469,9 +542,14 @@ async function initialize() {
     elements.templateCount.textContent = `${state.templates.length} 张`;
     renderTemplateButtons();
     elements.input.value = templateText(state.templates[0]);
+    elements.fontSelect.value = templateFont(state.templates[0]);
     updateCharacterCount();
-    await document.fonts.load(`700 42px "${FONT_FAMILY}"`, '简繁中文 ABC 123！？ㄎ一ㄤ');
-    if (!document.fonts.check(`700 42px "${FONT_FAMILY}"`, '简繁中文')) throw new Error('本地中文字体加载失败');
+    // 预加载所有字体 CSS
+    for (const font of FONT_OPTIONS) {
+      if (font.cssUrl) loadFontCSS(font.cssUrl);
+    }
+    await document.fonts.load(`700 42px "${DEFAULT_FONT}"`, '简繁中文 ABC 123！？ㄎ一ㄤ');
+    if (!document.fonts.check(`700 42px "${DEFAULT_FONT}"`, '简繁中文')) throw new Error('本地中文字体加载失败');
     state.fontReady = true;
     elements.workspace.setAttribute('aria-busy', 'false');
     elements.canvasLoading.textContent = '正在加载首张素材';
