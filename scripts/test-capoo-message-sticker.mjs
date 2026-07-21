@@ -26,6 +26,7 @@ async function canvasInfo(page) {
 }
 
 function gifInfo(bytes) {
+  assert.equal(Buffer.from(bytes).subarray(0, 6).toString('ascii'), 'GIF89a', '导出的文件必须是 GIF89a');
   const reader = new GifReader(Buffer.from(bytes));
   const rgba = Buffer.alloc(reader.width * reader.height * 4);
   reader.decodeAndBlitFrameRGBA(0, rgba);
@@ -139,6 +140,28 @@ async function main() {
     gifReports.push({ filename: path.basename(gifPath), ...downloadedGif, bytes: (await stat(gifPath)).size });
   }
 
+  // Export every template once with the default font so all 24 production GIF paths are decoded.
+  for (const button of await page.locator('.template-button').all()) {
+    await button.click();
+    await page.locator('#restore-button').click();
+    await page.waitForTimeout(40);
+    const templateId = await button.getAttribute('data-template-id');
+    const ordinal = String(Number(templateId) - 293948093).padStart(2, '0');
+    const gifDownload = page.waitForEvent('download');
+    await page.locator('#download-button').click();
+    const gif = await gifDownload;
+    const gifPath = path.join(outputDir, `咖波讯息贴图-全模板-${ordinal}-思源黑体.gif`);
+    await gif.saveAs(gifPath);
+    const downloadedGif = gifInfo(await (await import('node:fs/promises')).readFile(gifPath));
+    assert.equal(downloadedGif.width, 420);
+    assert.equal(downloadedGif.height, 350);
+    assert.equal(downloadedGif.frames, 1);
+    assert.ok(downloadedGif.transparentPixels > 0, `${templateId} 导出的 GIF 必须保留透明像素`);
+    gifReports.push({ templateId, fontId: 'noto-sans-sc', filename: path.basename(gifPath), ...downloadedGif, bytes: (await stat(gifPath)).size });
+  }
+
+  await page.locator('[data-template-id="293948094"]').click();
+  await page.locator('#message-input').fill('第一张一起下载');
   await page.locator('[data-template-id="293948095"]').click();
   await page.locator('#message-input').fill('两张一起下载');
   await page.waitForTimeout(120);
